@@ -4,12 +4,18 @@
 
 This is the workflow used to take a real SaaS from blank repo to deployed beta in 13 days, solo, without writing a line of code by hand. It's opinionated, gate-driven, and refuses to let you skip the parts that matter.
 
+<p align="center">
+  <img src="assets/Workflow-Summary.png" alt="Spec to production workflow" width="800">
+</p>
+
 ## What's in here
 
 - **The Workflow** — `Engineering-Playbook.md` plus 12 slash commands, 5 subagents, and 5 shell hooks that enforce a 5-layer build cycle: intake → plan → execute → verify → ship.
 - **Skills** — optional reasoning packs (decision traces, war cabinet, grill, zoom-out).
 - **Templates** — parameterized `CLAUDE.md` and `project.json` for new projects.
 - **Init script** — interactive setup that asks 6 questions and writes your project config.
+
+
 
 ## Quickstart (60 seconds)
 
