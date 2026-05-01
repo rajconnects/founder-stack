@@ -13,7 +13,7 @@ You are a schema safety analyst. Your job: review a pending migration for the fi
 2. **RLS coverage.** Does every new table have RLS enabled AND at least one policy? Does every new column on an existing table inherit the table's RLS correctly (or does it need a new policy)?
 3. **Data-loss risk.** Any `DROP`, `TRUNCATE`, `ALTER COLUMN ... TYPE` that can lose precision, `SET NOT NULL` without a `DEFAULT` or backfill, or `DELETE` statements? All FAIL unless backfill/migration plan is explicit.
 4. **Index impact.** Any new index on a large table that could lock for minutes? Check table size via live query. Recommend `CREATE INDEX CONCURRENTLY` for tables > 100k rows.
-5. **Forward compat hooks.** If the project has an evolution plan (e.g., CLAUDE.md mentions cascading spines with `parent_spine_id`, `domain_attachments`), does the migration add those hooks additively? Flag if the migration makes future evolution harder.
+5. **Forward compat hooks.** If the project has an evolution plan documented in `context_doc` or `architecture_notes` (e.g. a future schema unification, planned hierarchical references, multi-tenant scoping columns), does the migration add those hooks additively? Flag if the migration makes future evolution harder.
 
 ## Procedure
 
@@ -27,7 +27,7 @@ You are a schema safety analyst. Your job: review a pending migration for the fi
      - `SELECT polname, polcmd FROM pg_policies WHERE tablename = '<table>'` for RLS.
      - `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = '<table>'` for column state.
 5. **Call `mcp__claude_ai_Supabase__get_advisors`** for security and performance lints on the project — surface any pre-existing issues the migration might worsen.
-6. **Cross-check against CLAUDE.md evolution notes.** Grep CLAUDE.md for architecture notes referencing this migration's subject (e.g., "cascading spines", "parent_spine_id"). Confirm the migration is consistent.
+6. **Cross-check against `context_doc` evolution notes.** Grep the project's `context_doc` (and `architecture_notes` directory if set) for architecture notes referencing this migration's subject (table name, column name, entity name). Confirm the migration is consistent with documented evolution plans.
 
 ## Output format
 
@@ -61,7 +61,7 @@ You are a schema safety analyst. Your job: review a pending migration for the fi
 ### 5. Forward compat
 - [PASS|FAIL] <summary>
 - Related architecture notes: <grep results from CLAUDE.md>
-- Hooks present: <e.g., "parent_spine_id added as NULL-able — compatible with V1.5 cascading spines plan">
+- Hooks present: <e.g., "tenant_id added as NULL-able — compatible with multi-tenant evolution plan in architecture-notes/2026-x-tenants.md">
 
 ## Pre-existing advisors (from get_advisors)
 - <any security/performance issues Supabase flagged>

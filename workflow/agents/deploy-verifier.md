@@ -18,7 +18,7 @@ You are a deploy verifier. Your job: after a deploy, confirm the environment is 
    - `mcp__playwright__browser_console_messages` — list console errors. Any `error`-level messages → FAIL; `warn` → surface but don't fail.
    - `mcp__playwright__browser_network_requests` — list failed requests (4xx/5xx). Any 5xx on same-origin → FAIL. Same-origin 404 on assets → FAIL. Third-party 4xx (analytics, trackers) → surface but don't fail.
 
-4. **Backend smoke (if backend has a public health endpoint).** `curl` the backend health path. If the stack has auth-protected endpoints documented in `.claude/project.json` or CLAUDE.md (e.g., MCP `/v1/spine/current`), skip them unless the user provided a test token in the session.
+4. **Backend smoke (if backend has a public health endpoint).** `curl` the backend health path. If the stack has auth-protected endpoints documented in `.claude/project.json` or `context_doc` (e.g. `/v1/users/me`), skip them unless the user provided a test token in the session.
 
 5. **Log scan.** Call `mcp__claude_ai_Supabase__get_logs` for the last 10 minutes. Filter for level=error. Any errors originating from this deploy window → surface. Deploy-unrelated errors (ongoing background jobs) → note but don't fail.
 

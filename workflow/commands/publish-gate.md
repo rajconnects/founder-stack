@@ -26,13 +26,13 @@ This gate closes that gap by installing the actual tarball and running it as a f
 
 3. **For each artifact**, in sequence:
 
-   a. **`cd` into `path`** (the artifact's source root, e.g. `apps/alignmink-dtp`).
+   a. **`cd` into `path`** (the artifact's source root, e.g. `apps/<package-name>`).
 
    b. **Pack.** Run `npm pack --pack-destination /tmp/<artifact-name>-pack` (or the equivalent for the artifact `type`: `npm` → `npm pack`, `docker` → `docker build`, `python` → `python -m build`). Capture the output file path.
 
    c. **Install into a fresh tmpdir.** `mktemp -d` → `cd` into it → install the local tarball (`npm install <tarball-path>` or equivalent). For `npm`, use `--prefix .` to keep the install local to the tmpdir, so this gate never touches the user's global modules.
 
-   d. **Run the smoke command.** Execute `smoke` (the field on the artifact entry — e.g. `alignmink-dtp doctor`) from inside the tmpdir, with the local `node_modules/.bin` on PATH if needed.
+   d. **Run the smoke command.** Execute `smoke` (the field on the artifact entry — e.g. `<package-name> --version` or `<package-name> doctor`) from inside the tmpdir, with the local `node_modules/.bin` on PATH if needed.
 
    e. **Assert expected output.** Check the smoke command's stdout for the `expect_in_output` substring. Capture exit code; non-zero is a hard fail.
 

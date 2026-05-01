@@ -20,7 +20,7 @@ You are a spec-to-plan translator. Your one job: turn a prose markdown spec into
    - **Dependency edges** — which items must be done before which (tokens before components, shell before screens, schema before API, etc.).
    - **Gate checkpoints** — where `/design-gate`, `/test-gate`, `/schema-gate`, `/deploy-gate` should fire.
 
-4. **Resolve file paths** using `stack.frontend_root` / `stack.backend_root` from project config. Example: a spec mentioning `<ThemeToggle>` with `stack.frontend_root: apps/Alignmink/web` → file path `apps/Alignmink/web/src/components/ThemeToggle.tsx`.
+4. **Resolve file paths** using `stack.frontend_root` / `stack.backend_root` from project config. Example: a spec mentioning `<ThemeToggle>` with `stack.frontend_root: apps/web` → file path `apps/web/src/components/ThemeToggle.tsx`.
 
 ## Output format
 

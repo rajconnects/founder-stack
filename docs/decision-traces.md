@@ -25,26 +25,26 @@ What does NOT deserve a trace:
 
 ```json
 {
-  "id": "2026-04-15-cascading-spines-v1-option-c",
-  "date": "2026-04-15",
-  "title": "Cascading spines architecture — V1 commits to Option C",
+  "id": "2026-05-12-billing-provider-stripe-over-lemonsqueezy",
+  "date": "2026-05-12",
+  "title": "Billing provider — Stripe over Lemon Squeezy for V1",
   "status": "resolved",
-  "decided_by": "Arun",
-  "decision": "...",
+  "decided_by": "<your-name>",
+  "decision": "Use Stripe for V1 billing.",
   "alternatives_rejected": [
-    { "option": "Option A — flat tables", "reason_rejected": "..." },
-    { "option": "Option B — pure graph", "reason_rejected": "..." }
+    { "option": "Lemon Squeezy", "reason_rejected": "MoR convenience nice, but pricing model and webhook ergonomics weaker" },
+    { "option": "Paddle", "reason_rejected": "Overkill for sub-100-customer scale" }
   ],
-  "rationale": "...",
+  "rationale": "Stripe has the largest ecosystem, best library support, and our customer profile (US-based SaaS) doesn't benefit much from MoR.",
   "revisit_triggers": [
-    "When team/individual/agent spines ship",
-    "If pilots surface need for cross-spine permissions before V1.5"
+    "If we add a non-US revenue stream above 20% of total",
+    "If subscription churn forces a revenue-recognition rewrite"
   ],
   "supersedes": [],
   "superseded_by": null,
   "links": {
-    "spec": "specs/...",
-    "notes": "implementation-notes/..."
+    "spec": "specs/billing-v1.md",
+    "notes": "implementation-notes/phase-2-billing.md"
   }
 }
 ```

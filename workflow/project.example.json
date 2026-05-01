@@ -9,7 +9,7 @@
   "design_system": {
     "tokens": "path/to/tokens.css",
     "components_spec": "path/to/component-spec.md",
-    "flow_spec": "path/to/frontend-flow-spec.md",
+    "flow_spec": "path/to/flow-spec.md",
     "copy_guide": "path/to/copy-guide.md",
     "figma": {
       "file_key": null,

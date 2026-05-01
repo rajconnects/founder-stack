@@ -61,7 +61,7 @@ You are running a context-broadening pass. The user is unfamiliar with this area
 
 ## Notes
 
-- Use the project's glossary vocabulary throughout. If the glossary defines a domain term (e.g. "Order," "Strategy Spine," "Booking"), use it — do not drift into generic words like "the table," "the handler," "the file." Consistency in language is the work.
+- Use the project's glossary vocabulary throughout. If the glossary defines a domain term (e.g. "Order," "Tenant," "Booking"), use it — do not drift into generic words like "the table," "the handler," "the file." Consistency in language is the work.
 - Do not propose changes. Do not propose refactors. Do not flag tech debt. This command is read-only orientation. (For refactor surfacing, use `/architecture-review`.)
 - If the project has no glossary yet, fall back to plain English and note it once: "No glossary detected at <glossary_doc>. Using plain English."
 - Cap output at ~50 lines. If the map is genuinely larger, summarize and offer "say expand for the full map."

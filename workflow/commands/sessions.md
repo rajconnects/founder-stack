@@ -15,9 +15,9 @@ You are inspecting parallel-session state.
 2. Print a table:
    ```
    ID         STATUS              SEVERITY  PHASE       BRANCH                    HEARTBEAT (age)
-   sess-abc   active              major     7a          phase-7a-app-shell        2m
+   sess-abc   active              major     2a          phase-2a-billing          2m
    sess-def   completed           minor     docs        main                      —
-   sess-ghi   completed_unclean   major     6d          phase-6d-domain-spines    18m (stale)
+   sess-ghi   completed_unclean   major     1c          phase-1c-auth             18m (stale)
    ```
 3. Below the table, list any rows where `status: active` and heartbeat age > staleness threshold — these are likely crashed sessions.
 

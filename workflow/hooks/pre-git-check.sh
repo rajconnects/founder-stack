@@ -1,7 +1,7 @@
 #!/bin/bash
-# Claude Code PreToolUse hook: quality gate before git commit/push
-# Receives tool input as JSON on stdin.
-# Blocks the command (exit 2) if quality checks fail.
+# Claude Code PreToolUse hook: quality gate before git commit/push.
+# Reads .claude/project.json for backend root and test commands.
+# Blocks (exit 2) if checks fail. Skips silently if config or tools are missing.
 
 set -euo pipefail
 
@@ -9,29 +9,37 @@ INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
 PROJECT_DIR=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null || echo "")
 
-ALIGNMINK_DIR="$PROJECT_DIR/apps/Alignmink"
+CONFIG="$PROJECT_DIR/.claude/project.json"
+[ -f "$CONFIG" ] || exit 0
+
+BACKEND_ROOT=$(python3 -c "import json; v=json.load(open('$CONFIG')).get('stack',{}).get('backend_root'); print(v or '')" 2>/dev/null || echo "")
+TEST_BACKEND=$(python3 -c "import json; v=json.load(open('$CONFIG')).get('test_commands',{}).get('backend'); print(v or '')" 2>/dev/null || echo "")
+
 ERRORS=0
 
-# Determine ruff command
+# Resolve ruff if backend root exists
 RUFF_CMD=""
-if [ -x "$ALIGNMINK_DIR/.venv/bin/ruff" ]; then
-    RUFF_CMD="$ALIGNMINK_DIR/.venv/bin/ruff"
-elif command -v ruff >/dev/null 2>&1; then
-    RUFF_CMD="ruff"
+BACKEND_DIR=""
+if [ -n "$BACKEND_ROOT" ]; then
+    BACKEND_DIR="$PROJECT_DIR/$BACKEND_ROOT"
+    if [ -x "$BACKEND_DIR/.venv/bin/ruff" ]; then
+        RUFF_CMD="$BACKEND_DIR/.venv/bin/ruff"
+    elif command -v ruff >/dev/null 2>&1; then
+        RUFF_CMD="ruff"
+    fi
 fi
 
 # --- git commit: lint + format check ---
 if echo "$COMMAND" | grep -qE '^git commit'; then
     echo "[quality-gate] Running pre-commit checks..."
 
-    if [ -n "$RUFF_CMD" ]; then
-        # Run from within the directory so per-file-ignores match correctly
-        if ! (cd "$ALIGNMINK_DIR" && "$RUFF_CMD" check . 2>/dev/null); then
-            echo "[quality-gate] FAIL: Python lint errors. Run: cd apps/Alignmink && ruff check --fix ."
+    if [ -n "$RUFF_CMD" ] && [ -n "$BACKEND_DIR" ]; then
+        if ! (cd "$BACKEND_DIR" && "$RUFF_CMD" check . 2>/dev/null); then
+            echo "[quality-gate] FAIL: Python lint errors. Run: cd $BACKEND_ROOT && ruff check --fix ."
             ERRORS=1
         fi
-        if ! (cd "$ALIGNMINK_DIR" && "$RUFF_CMD" format --check . 2>/dev/null); then
-            echo "[quality-gate] FAIL: Python format issues. Run: cd apps/Alignmink && ruff format ."
+        if ! (cd "$BACKEND_DIR" && "$RUFF_CMD" format --check . 2>/dev/null); then
+            echo "[quality-gate] FAIL: Python format issues. Run: cd $BACKEND_ROOT && ruff format ."
             ERRORS=1
         fi
     fi
@@ -45,26 +53,27 @@ if echo "$COMMAND" | grep -qE '^git commit'; then
     exit 0
 fi
 
-# --- git push: lint + format + tests ---
+# --- git push: lint + tests ---
 if echo "$COMMAND" | grep -qE '^git push'; then
     echo "[quality-gate] Running pre-push checks (lint + tests)..."
 
-    if [ -n "$RUFF_CMD" ]; then
-        if ! (cd "$ALIGNMINK_DIR" && "$RUFF_CMD" check . 2>/dev/null); then
+    if [ -n "$RUFF_CMD" ] && [ -n "$BACKEND_DIR" ]; then
+        if ! (cd "$BACKEND_DIR" && "$RUFF_CMD" check . 2>/dev/null); then
             echo "[quality-gate] FAIL: Python lint errors."
             ERRORS=1
         fi
     fi
 
-    # Run tests (use .venv/bin/python relative to ALIGNMINK_DIR to avoid path-with-spaces issues)
-    if [ -x "$ALIGNMINK_DIR/.venv/bin/python" ]; then
-        if ! (cd "$ALIGNMINK_DIR" && .venv/bin/python -m pytest tests/ -q --tb=line 2>&1); then
-            echo "[quality-gate] FAIL: Tests failing. Run: cd apps/Alignmink && .venv/bin/python -m pytest tests/ -v"
-            ERRORS=1
+    # Backend tests, if a command is configured
+    if [ -n "$TEST_BACKEND" ] && [ -n "$BACKEND_DIR" ]; then
+        # Prefer .venv/bin/python for pytest commands (path-with-spaces safety)
+        if [ -x "$BACKEND_DIR/.venv/bin/python" ] && [[ "$TEST_BACKEND" == pytest* ]]; then
+            TEST_CMD=".venv/bin/python -m ${TEST_BACKEND}"
+        else
+            TEST_CMD="$TEST_BACKEND"
         fi
-    elif command -v python3 >/dev/null 2>&1; then
-        if ! (cd "$ALIGNMINK_DIR" && python3 -m pytest tests/ -q --tb=line 2>&1); then
-            echo "[quality-gate] FAIL: Tests failing."
+        if ! (cd "$BACKEND_DIR" && eval "$TEST_CMD -q --tb=line" 2>&1); then
+            echo "[quality-gate] FAIL: Tests failing. Run: cd $BACKEND_ROOT && $TEST_BACKEND -v"
             ERRORS=1
         fi
     fi
