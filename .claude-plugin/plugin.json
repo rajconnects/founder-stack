@@ -1,0 +1,15 @@
+{
+  "name": "founder-stack",
+  "version": "0.1.0",
+  "description": "Engineering workflow for non-technical founders building real products with Claude Code",
+  "homepage": "https://github.com/rajconnects/founder-stack",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "workflow",
+    "non-technical-founders",
+    "agentic-coding",
+    "gates",
+    "decision-traces"
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "_comment": "Copy to .claude/project.json and fill in for your project. Null values disable features that depend on them (e.g., null figma.node_id skips screenshot diff).",
+  "project_name": "<project name>",
+  "spec_roots": {
+    "system": "path/to/system/specs/",
+    "frontend": "path/to/frontend/specs/",
+    "build_plans": "path/to/build/plans/"
+  },
+  "design_system": {
+    "tokens": "path/to/tokens.css",
+    "components_spec": "path/to/component-spec.md",
+    "flow_spec": "path/to/frontend-flow-spec.md",
+    "copy_guide": "path/to/copy-guide.md",
+    "figma": {
+      "file_key": null,
+      "node_id": null
+    }
+  },
+  "migrations": "path/to/migrations/",
+  "deploy_targets": {
+    "staging": {
+      "type": "fly|vercel|render|k8s|other",
+      "url": null,
+      "health_path": "/health"
+    },
+    "prod": {
+      "type": "fly|vercel|render|k8s|other",
+      "url": null,
+      "health_path": "/"
+    }
+  },
+  "stack": {
+    "frontend": "vite-react-ts|next|remix|sveltekit|other",
+    "frontend_root": "apps/web",
+    "backend": "fastapi-python|express-node|rails|other",
+    "backend_root": "apps/api",
+    "db": "supabase|postgres|mysql|other",
+    "supabase_project_ref": null
+  },
+  "test_commands": {
+    "frontend": "npm test",
+    "frontend_cwd": "apps/web",
+    "backend": "pytest tests/",
+    "backend_cwd": "apps/api"
+  },
+  "test_roots": {
+    "frontend": "apps/web/src/**/__tests__/",
+    "backend": "apps/api/tests/"
+  },
+  "decision_traces": "traces/",
+  "handoff_template": "docs/handoff-template.md",
+  "handoff_output_dir": "docs/handoffs/",
+  "build_status_file": "docs/build-status.md",
+  "context_doc": "CLAUDE.md",
+  "glossary_doc": "CLAUDE.md",
+  "glossary_anchor": "Glossary",
+  "decision_records": {
+    "format": "markdown-adr",
+    "path": "docs/adr/",
+    "_supported_formats": [
+      "json-traces",
+      "markdown-adr",
+      "mixed"
+    ]
+  },
+  "architecture_notes": "docs/architecture/",
+  "_release_artifacts_comment": "Used by /publish-gate. Each entry describes a packageable artifact, the command to smoke-test it after a fresh install, and the substring expected in the smoke output. Omit if the project doesn't ship one.",
+  "release_artifacts": [
+    {
+      "name": "<artifact name>",
+      "path": "apps/<artifact-dir>",
+      "type": "npm|docker|python",
+      "smoke": "<command-run-from-installed-artifact>",
+      "expect_in_output": "<short literal substring>"
+    }
+  ],
+  "_real_corpora_comment": "Used by /test-gate. Each entry is a real-on-disk fixture set the suite must validate against — production-shaped data the unit-test fixtures don't cover. Catches schema-too-strict bugs.",
+  "real_corpora": [
+    {
+      "name": "<corpus name>",
+      "path": "<dir of real artifacts>",
+      "validator": "<file:export>",
+      "_validator_format": "TypeScript file path + colon + named export of a Zod schema or validator function"
+    }
+  ],
+  "_schemas_of_record_comment": "Used by /handoff. Names canonical schema sources and the secondary places they're shadowed (code, docs, templates). Touching the canonical site without updating the shadows is the protocol-drift bug class.",
+  "schemas_of_record": [
+    {
+      "name": "<schema name>",
+      "canonical": "<path/to/canonical/schema.json>",
+      "shadowed_by": [
+        "<path/to/runtime/validator>",
+        "<path/to/producer/template>",
+        "<path/to/prose/spec>"
+      ]
+    }
+  ]
+}
