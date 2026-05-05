@@ -21,6 +21,10 @@ You are running the end-of-phase handoff.
    
    If any required marker is missing, warn the user and ask whether to proceed anyway. Do NOT silently generate a handoff doc for an unverified phase.
 
+3b. **Design-bypass scan.** Glob `.claude/.design-bypass-*`. For each marker found, extract the scope slug from the filename. Print loudly:
+   *"⚠ Design approval bypassed for: <scope-list>. The operator invoked `/frontend-build --bypass` for these scopes. Confirm justification before completing handoff."*
+   Ask the user for a one-line justification per bypass; record under "Known risks / deferred items" in the generated handoff doc (step 5). After the handoff doc is written successfully (step 5), delete the bypass markers — they should not carry into the next phase.
+
 3a. **Schema-of-record drift check (if `schemas_of_record` is configured).** Protocol/schema bugs are easy to miss because the truth lives in multiple places that drift independently. For each entry in `schemas_of_record`:
    - Run `git diff --name-only <phase-start-ref> HEAD` to see what changed in this phase.
    - If `canonical` is in the diff, ALL `shadowed_by` paths SHOULD also be in the diff. Surface mismatches: *"You changed `<canonical>` but not `<shadowed_by[i]>`. Producer/consumer drift risk — confirm intentional."*

@@ -26,8 +26,8 @@ Verify (layer 4) gets the sharpest tooling — that's where spec-to-code drift a
 |---|---|
 | `project.json` | Project self-description. Paths to specs, tokens, migrations, deploy targets. Every agent and hook reads this first. |
 | `project.example.json` | Template for new projects. Copy to `project.json` and fill in. |
-| `agents/*.md` | Seven subagents: `spec-translator`, `design-auditor`, `test-author`, `schema-analyst`, `deploy-verifier`, `ux-wireframer`, `ux-mockup-designer`. All read `project.json` (or receive its fields inlined by the calling command). |
-| `commands/*.md` | Slash commands: `/spec-intake`, `/grill`, `/ux-wireframe`, `/ux-mockup`, `/zoom-out`, `/design-gate`, `/test-gate`, `/schema-gate`, `/publish-gate`, `/deploy-gate`, `/handoff`, `/architecture-review`, `/start-build`, `/sessions`. Thin wrappers that delegate to subagents. |
+| `agents/*.md` | Eight subagents: `spec-translator`, `design-auditor`, `test-author`, `schema-analyst`, `deploy-verifier`, `ux-wireframer`, `ux-mockup-designer`, `frontend-engineer`. All read `project.json` (or receive its fields inlined by the calling command). |
+| `commands/*.md` | Slash commands: `/spec-intake`, `/grill`, `/ux-wireframe`, `/ux-mockup`, `/zoom-out`, `/design-gate`, `/test-gate`, `/frontend-build`, `/schema-gate`, `/publish-gate`, `/deploy-gate`, `/handoff`, `/architecture-review`, `/start-build`, `/sessions`. Thin wrappers that delegate to subagents. |
 | `hooks/*.sh` | Shell scripts wired via `settings.json`: `auto-lint.sh`, `pre-git-check.sh`, `tsc-check.sh`, `migration-guard.sh`, `main-push-guard.sh`. |
 | `settings.json` | Portable hook wiring. Committed. |
 | `settings.local.json` | Machine-specific permissions. Gitignored. |
@@ -75,9 +75,10 @@ A phase takes a spec and produces shippable code, a handoff doc, and decision tr
 
 1. `/spec-intake <spec path>` — `spec-translator` reads the spec, emits a structured plan. Enter plan mode.
 1c. *(Frontend specs only.)* `/ux-wireframe <scope>` — `ux-wireframer` extends `components_spec` and `flow_spec` with contracts and produces low-fi `[WIREFRAME]` Figma frames. Sets `.ux-wireframe-passed-<scope>` marker.
-1d. *(Frontend specs only.)* After wireframe review: `/ux-mockup <scope>` — `ux-mockup-designer` refines the wireframes into high-fi Figma frames; the command then runs the operator approve/iterate/reject prompt. On approve, sets `.design-approved-<scope>` marker (consumed downstream by engineering gates once Phase 2 lands).
+1d. *(Frontend specs only.)* After wireframe review: `/ux-mockup <scope>` — `ux-mockup-designer` refines the wireframes into high-fi Figma frames; the command then runs the operator approve/iterate/reject prompt. On approve, sets `.design-approved-<scope>` marker (hard-gated by `/frontend-build`).
 2. Approve plan. Claude implements per plan.
 3. Before writing a new feature: `/test-gate <scope>` — `test-author` writes failing tests establishing the contract.
+3b. *(Frontend specs only, after `/test-gate`.)* `/frontend-build <scope>` — `frontend-engineer` produces a three-section brief (composition, optimization ≤3 recs, scaffold body) cited to the contract and Figma. The command writes the scaffold file (or skips if it exists). Hard-gates on `.design-approved-<scope>`; `--bypass` allowed for emergencies and surfaced in `/handoff`.
 4. Implement against red tests. Hooks enforce lint (auto-lint.sh) and flag type errors (tsc-check.sh) on every Edit.
 5. After a component/screen set is complete: `/design-gate <scope>` — `design-auditor` checks tokens, component contract, a11y, design-source alignment.
 6. Before applying a migration: `/schema-gate <migration>` — `schema-analyst` checks additive-only, RLS, data loss, index impact, forward-compat. Queries live DB read-only.
@@ -106,7 +107,8 @@ Gates write small marker files so hooks and downstream commands know what passed
 - `.claude/.design-gate-passed` — `/design-gate` returned PASS (optional)
 - `.claude/.publish-gate-passed-<artifact>` — `/publish-gate` returned PASS
 - `.claude/.ux-wireframe-passed-<scope>` — `/ux-wireframe` produced contracts and (optional) wireframe frames; required for `/ux-mockup`
-- `.claude/.design-approved-<scope>` — operator approved high-fi mockups via `/ux-mockup`; required by Phase 2 `/frontend-build`
+- `.claude/.design-approved-<scope>` — operator approved high-fi mockups via `/ux-mockup`; **hard prerequisite** for `/frontend-build`. Also gated by `/design-gate --strict`.
+- `.claude/.design-bypass-<scope>` — `/frontend-build --bypass` was invoked without a `.design-approved-<scope>` marker. Surfaced loudly in `/design-gate` and `/handoff`. Deleted by `/handoff` after the bypass is justified in the handoff doc.
 
 These are session-scoped and gitignored. They're advisory — not a hard lock. A missing marker triggers a warning, not a block.
 
@@ -117,7 +119,7 @@ Everything under `.claude/` is portable. To move the workflow to a new project:
 1. Copy `.claude/` directory into the new repo.
 2. Copy `.claude/project.example.json` → `.claude/project.json`; edit the paths.
 3. Commit `.claude/` (including `project.json` and `settings.json`).
-4. Gitignore `.claude/settings.local.json`, `.claude/.schema-gate-passed`, `.claude/.deploy-gate-passed-*`, `.claude/.design-gate-passed`, `.claude/.publish-gate-passed-*`, `.claude/.ux-wireframe-passed-*`, `.claude/.design-approved-*`.
+4. Gitignore `.claude/settings.local.json`, `.claude/.schema-gate-passed`, `.claude/.deploy-gate-passed-*`, `.claude/.design-gate-passed`, `.claude/.publish-gate-passed-*`, `.claude/.ux-wireframe-passed-*`, `.claude/.design-approved-*`, `.claude/.design-bypass-*`.
 5. Confirm `Read` / `Grep` / `Bash` permissions for the new repo's paths.
 
 If `stack.db` does not match a supported provider, `schema-analyst` errors out — either adapt `project.json` or extend the agent with alternative DB tools.
@@ -132,6 +134,7 @@ Acceptance criteria that require a running app, network, or DOM do NOT belong in
 |---|---|---|
 | Component contract production (props, states, a11y) | `/ux-wireframe` | Layer 1.7 — produces the contract `/design-gate` later checks against |
 | High-fi mockup + human approval | `/ux-mockup` | Layer 1.7 — operator signs off before engineering proceeds |
+| Design-aware brief + scaffold (composition, optimization ≤3) | `/frontend-build` | Layer 3 — hard-gated on `.design-approved-<scope>`. Command writes scaffold; agent stays read-only. |
 | Token usage, hex literals, a11y attributes in source | `/design-gate` | Static code read is sufficient |
 | Component contract (props, variants) from spec | `/design-gate` | Static code read is sufficient |
 | Design-source alignment (variable match, visual) | `/design-gate` | Design MCP available; static comparison |
@@ -156,6 +159,8 @@ Not every phase deserves the full flow. Match tooling to task size.
 Delegation has overhead (prompt, context handoff, review). For bounded work the overhead dominates; main agent does the work directly. The `test-gate` command classifies and branches automatically — see `commands/test-gate.md`.
 
 **Still mandatory for bounded work:** `/design-gate` (static token + design-source audit) and, for UI work, `/deploy-gate` runtime checks. Gates are the whole point; delegation within a gate is the cost-control lever.
+
+For frontend components with non-trivial design context — anything that justified going through `/ux-wireframe` and `/ux-mockup` — `/frontend-build` belongs in the open-scope path. Bounded one-line tweaks don't need it.
 
 ## Config rot as a tax of doing business
 

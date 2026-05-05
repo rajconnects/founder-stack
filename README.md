@@ -8,12 +8,12 @@ This is the workflow used to take a real SaaS from blank repo to deployed beta i
   <img src="assets/Workflow-Summary.png" alt="Spec to production workflow" width="800">
 </p>
 
-<!-- TODO: regenerate Workflow-Summary.png to show the layer 1.7 DESIGN ladder (/ux-wireframe → /ux-mockup → human approval). Image drift is acceptable until Phase 2 (frontend specialist) also lands. -->
+<!-- TODO: regenerate Workflow-Summary.png to show the layer 1.7 DESIGN ladder (/ux-wireframe → /ux-mockup → human approval) and the /frontend-build hard gate. -->
 
 
 ## What's in here
 
-- **The Workflow** — `Engineering-Playbook.md` plus 14 slash commands, 7 subagents, and 5 shell hooks that enforce a build cycle: intake → (challenge) → (design) → plan → execute → verify → ship. The optional `design` layer (`/ux-wireframe` → `/ux-mockup` with human approval) lands designs as a source of truth before frontend code is written.
+- **The Workflow** — `Engineering-Playbook.md` plus 15 slash commands, 8 subagents, and 5 shell hooks that enforce a build cycle: intake → (challenge) → (design) → plan → execute → verify → ship. The optional `design` layer (`/ux-wireframe` → `/ux-mockup` with human approval) lands designs as a source of truth before frontend code is written; `/frontend-build` then converts the approved design into a brief + scaffold the main agent implements against (hard-gated on the approval marker).
 - **Skills** — optional reasoning packs (decision traces, war cabinet, grill, zoom-out).
 - **Templates** — parameterized `CLAUDE.md` and `project.json` for new projects.
 - **Init script** — interactive setup that asks 6 questions and writes your project config.
