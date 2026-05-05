@@ -2,6 +2,40 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-06 — Install guide for the messy scenarios + refreshed workflow diagram
+
+### The realization
+
+The README had one install snippet and a stale PNG that predated the design ladder and `/frontend-build`. That's enough for a fresh repo and nothing else. The two scenarios that actually trip people — installing into a codebase that already exists, and installing alongside another harness or user-global commands — were undocumented. We were quietly assuming every user starts from `mkdir my-product`.
+
+The diagram had its own version of the same problem: it showed five stages but said nothing about which commands and agents live in each. A founder reading the README couldn't answer "what runs when I'm in BUILD?" without spelunking through `workflow/commands/`.
+
+### The fix, in one sentence
+
+**Document the three real install scenarios end-to-end, and rebuild the workflow diagram so each stage names the commands and agents that run inside it.**
+
+### Specifics shipped this release
+
+- `docs/install.md` — new. Covers (1) fresh repo, (2) existing repo with no harness, (3) existing harness or user-global commands. Each scenario gets the actual command sequence, things to watch for, and a copy-pasteable verification block. Plus update path, uninstall steps, and a gotchas section (missing python3, moved framework dir, hooks not firing, slash commands not appearing).
+- `assets/Workflow-Diagram-2.png` — new. Same five-stage style as the predecessor but each stage now has a translucent tools panel directly beneath it listing the commands, agents, and (for BUILD) auto-firing hooks. INTAKE → PLAN → BUILD → VERIFY → SHIP, with output labels and three starred footnotes carrying over the original tone ("VERIFY earns the right to ship," "hooks fire automatically — no model cost," "reset session between phases").
+- `assets/Workflow-Summary.png` — removed. The replacement supersedes it; keeping a stale diagram around is worse than having one.
+- `README.md` — embeds the new diagram, removes the prior Mermaid placeholder, and points existing-repo readers at `docs/install.md` from the Quickstart.
+- `docs/workflow.md` — adds an "At a glance" Mermaid block before Layer 1 with the design ladder and gate-failure loops drawn explicitly.
+- `docs/quickstart.md` — routes existing-repo readers to `install.md` first; expands the "what's next" links to include install + session-hygiene.
+
+### What we deliberately didn't do
+
+- We did not write a Cursor- or Cline-specific install path. The framework is Claude Code-first; the install guide says so explicitly and stops there.
+- We did not ship a `--namespace founder` flag or a `doctor` subcommand for scenario 3 — those are real gaps that the doc names as future work, but they're CLI features, not documentation. Filing them as scope for the npm-wrapper conversation, not this release.
+- We did not delete `assets/` content blindly. The old PNG was removed because the new one supersedes it; nothing else was touched.
+- We did not change install scripts in this release — the `settings.json` wiring fix earlier today was the install change. This release is documentation catching up to reality.
+
+### The lesson worth carrying
+
+The earlier two entries today (model-tier work, then session hygiene) were about cost. This one is about *trust*: when a non-technical founder runs `install.sh` and sees `skip (exists): commands/spec-intake.md` they don't know what to do with that. The framework's whole pitch is that the discipline shouldn't depend on the user's tooling fluency — but the discipline *also* shouldn't depend on the user being lucky enough to start from a clean repo.
+
+Documentation is part of the contract, not a gloss on it. If the install can hit five different states and only one of them is in the README, the framework is harder to adopt than it claims to be.
+
 ## 2026-05-06 — Hooks now actually fire after install
 
 ### The realization
