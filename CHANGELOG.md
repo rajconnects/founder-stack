@@ -2,6 +2,37 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-06 — Hooks now actually fire after install
+
+### The realization
+
+While sketching the npm packaging tradeoffs against three install scenarios (fresh repo, existing repo with no harness, existing repo with another harness) we found a real bug, not a packaging question. `install.sh` symlinked `workflow/hooks/*.sh` into `.claude/hooks/` and stopped there. Claude Code does not fire hooks just because the files exist — it fires them because entries in `.claude/settings.json` register them under specific events and matchers. The framework was shipping the *scripts* without the *registration*, which meant every install required the user to hand-edit JSON to make `auto-lint`, `tsc-check`, `pre-git-check`, `main-push-guard`, and `migration-guard` actually run.
+
+Hand-editing JSON is exactly the friction the framework's audience can't absorb.
+
+### The fix, in one sentence
+
+**Make `install.sh` idempotently merge hook entries into `.claude/settings.json`, preserving any pre-existing user configuration.**
+
+### Specifics shipped this release
+
+- `scripts/wire-hooks.py` — new file. Stdlib-only (no jq dependency). Reads the existing `settings.json` (or creates it), registers each framework hook under the correct event (`PreToolUse` / `PostToolUse`) and matcher (`Bash` / `Edit|Write`), and dedupes by script filename so re-running install adds zero duplicates. User-authored entries — other hooks, permissions blocks, `Stop` event handlers — are left untouched.
+- `scripts/install.sh` — invokes `wire-hooks.py` after the symlink loop. If `python3` is missing or the merger fails, install continues with a clear warning rather than aborting. The skip path tells the user exactly which command to run by hand.
+- Hook → event mapping is now canonical: `auto-lint.sh` and `tsc-check.sh` on `PostToolUse Edit|Write`; `pre-git-check.sh` and `main-push-guard.sh` on `PreToolUse Bash`; `migration-guard.sh` on `PreToolUse Edit|Write`. `schema-static-scan.sh` deliberately stays out — it is invoked from inside `/schema-gate`, not registered as a Claude Code hook.
+
+### What we deliberately didn't do
+
+- We did not add jq, npm, or any new tooling dependency. The merger uses python3, which the hook scripts already require.
+- We did not auto-`chmod +x` symlinked hook scripts. The source files in `workflow/hooks/` are already executable; the symlinks inherit that.
+- We did not touch `init-project.sh`. Hook wiring is a property of the install, not project setup; conflating the two would re-wire on every project init and surprise users.
+- We did not ship any of the other npm-packaging scope (CLI wrapper, namespace flag, `doctor` subcommand). Those are scenario-3 features and remain open work; this fix lives entirely in the existing bash install path.
+
+### The lesson worth carrying
+
+Yesterday's two entries were about token cost — per-call (model tier, tool surface) and cross-call (session hygiene). Today's is about a different kind of cost: the hand-editing tax the install was silently charging every user. Same shape of question, different axis: *what work are we asking the user to do because we never wrote the cheap version?*
+
+The framework's whole pitch is that the discipline shouldn't depend on the user's tooling fluency. An install that works only after the user has opened JSON in a text editor was a quiet contradiction of that pitch. It is no longer.
+
 ## 2026-05-06 — Session hygiene: the cross-call counterpart
 
 ### The realization
