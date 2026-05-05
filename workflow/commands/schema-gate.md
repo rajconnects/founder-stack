@@ -29,6 +29,8 @@ You are running the schema gate.
 
 8. **Print.** On PASS, print one line: `schema-gate: PASS — <N> tables, <M> columns, <K> indexes audited`. On FAIL or PASS_WITH_WARNINGS, print the agent's terse output verbatim.
 
+9. **Session hygiene hint (PASS only).** Append one line: `If the next task is unrelated to this migration, consider a session reset (in Claude Code: /clear). See docs/session-hygiene.md.` Do not print on FAIL — the failure context is what the user needs to diagnose.
+
 ## Notes
 
 - The static scan catches the cheap fails for free. The agent only sees migrations that already passed it.

@@ -22,6 +22,8 @@ You are running the deploy gate AFTER a deploy has completed.
 
 5. If verdict is FAIL, do NOT suggest code changes — the user's next step is diagnosis and rollback decision. Surface the failure details and stop.
 
+6. **Session hygiene hint (PASS only).** Append one line: `Deploy verified. If you're moving to a different feature next, consider a session reset (in Claude Code: /clear). See docs/session-hygiene.md.` Skip on FAIL.
+
 ## Notes
 
 - This is a READ-ONLY gate. The verifier cannot deploy, restart, or roll back. If the user wants those, they invoke their deploy tooling separately.

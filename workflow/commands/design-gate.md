@@ -34,6 +34,8 @@ You are running the design gate.
 
 4. If verdict is FAIL, list the specific next actions at the end: "Fix the N flagged items in design-auditor output, then re-run `/design-gate`." Do not auto-fix unless the user asks.
 
+5. **Session hygiene hint (PASS only).** Append one line: `If the next task is unrelated to this scope, consider a session reset (in Claude Code: /clear). See docs/session-hygiene.md.` Do not print on FAIL or on bypass-marker warnings — the user is still in remediation mode.
+
 ## Notes
 
 - This gate is required before `/handoff`. If the user tries to hand off without running it, remind them.

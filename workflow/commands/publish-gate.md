@@ -40,7 +40,7 @@ This gate closes that gap by installing the actual tarball and running it as a f
 
 4. **Report.** For each artifact: PASS / FAIL, the smoke command run, the matched substring (or what was missing), and the path to the tested tarball.
 
-5. **On all-PASS:** record a session marker — `touch .claude/.publish-gate-passed-<artifact-name>`. The next `/handoff` checks for these.
+5. **On all-PASS:** record a session marker — `touch .claude/.publish-gate-passed-<artifact-name>`. The next `/handoff` checks for these. Append one line: `If the next task is unrelated to this artifact, consider a session reset (in Claude Code: /clear). See docs/session-hygiene.md.`
 
 6. **On any FAIL:** print the smoke command's full output, the missing-substring detail, and STOP. Do not auto-retry. Do not auto-fix. The user's next step is to diagnose (likely a missing entry in the `files` allowlist or a stale `dist/` build).
 

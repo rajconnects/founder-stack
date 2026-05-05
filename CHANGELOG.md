@@ -2,6 +2,37 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-06 — Session hygiene: the cross-call counterpart
+
+### The realization
+
+Yesterday's entry was about *per-call* cost — picking the right model tier per agent, trimming tool surface, scoping queries. That fix matters, but it has a sibling we hadn't documented: a single Opus orchestrator session that runs all day silently drags every prior turn into every new prompt. By hour three, a `/schema-gate` run that should be cheap is being asked to share context with an unrelated UX wireframe from earlier in the day.
+
+The cheapest token is the one you didn't carry forward.
+
+### The fix, in one sentence
+
+**Make session reset and session compaction first-class workflow operations — documented, suggested at the natural seams, never silently auto-triggered.**
+
+### Specifics shipped this release
+
+- `docs/session-hygiene.md` — new doc. Defines reset vs compact, when to do each, when to do neither (mid-implementation with red tests, mid-`/spec-intake`, after the user gives non-durable feedback, on a gate FAIL). Harness-agnostic; Claude Code's `/clear` and `/compact` are the appendix mapping.
+- `workflow/commands/schema-gate.md`, `design-gate.md`, `deploy-gate.md`, `publish-gate.md` — PASS path now prints a one-line session-reset suggestion pointing at the doc. FAIL paths untouched: failure context is what the user needs to diagnose.
+- `workflow/commands/test-gate.md` — deliberately *not* changed. Test-gate PASS means tests are red and implementation is next; that's the canonical "stay in the session" case.
+- `docs/workflow.md` — added a cross-cutting "Session hygiene" section before "Reuse, not rebuild." Frames hygiene as orthogonal to the five layers, not a sixth layer.
+
+### What we deliberately didn't do
+
+- We didn't add an auto-clear hook. Hooks that silently destroy conversation state would surprise users and break their mental model. The framework suggests; the user clears.
+- We didn't add a new `/reset` slash command. `/clear` and `/compact` are harness built-ins; aliasing them would fragment the contract, and per the framework rule, command shapes are public interfaces.
+- We didn't write Pi-specific guidance. Pi has its own context model — covered if a user asks. The default doc stays harness-agnostic.
+
+### The lesson worth carrying
+
+Per-call cost is what model tiers and tool-surface trimming address. Session-level cost is what hygiene addresses. The two together cover the cost surface; in isolation, either one leaves the other unbounded.
+
+If a session feels expensive *and* the agent feels distracted, the answer is usually a reset, not a smarter prompt.
+
 ## 2026-05-05 — Gates that don't pay model tax for free work
 
 ### The realization

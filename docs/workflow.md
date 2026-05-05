@@ -46,6 +46,16 @@ A failing gate blocks the next layer. The agent can't talk past them — they're
 
 The handoff is what the *next* phase reads first. It's how single-track days stay single-track.
 
+## Cross-cutting: session hygiene
+
+The five layers describe *what* runs at each stage. **Session hygiene** is the habit you apply *between* layer transitions — when to reset the conversation (Claude Code: `/clear`), when to compact it (`/compact`), and when to leave it alone.
+
+A natural rhythm: compact after intake converges; keep the session through implementation and tests; reset after a gate PASSes if the next task is unrelated; reset after `/handoff`. The gate commands now print a session-reset hint on PASS so the seam is hard to miss.
+
+Per-call cost is addressed by model tiers and tool-surface trimming (see `CHANGELOG.md` 2026-05-05). Cross-call cost is addressed here. Both matter — and a long-running Opus orchestrator dragging hours of stale context is *worse* at the next task, not just more expensive.
+
+Full guidance: [`docs/session-hygiene.md`](session-hygiene.md).
+
 ## Reuse, not rebuild
 
 Don't reinvent the cycle for each phase. The same five layers carry every feature, every bug fix, every migration. The discipline is the discipline.
