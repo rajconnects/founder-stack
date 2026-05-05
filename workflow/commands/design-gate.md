@@ -12,8 +12,9 @@ You are running the design gate.
 1. If `$ARGUMENTS` is empty, determine scope by running `git diff --name-only HEAD~5 -- '*.tsx' '*.ts' '*.css'` and deduplicating to changed components/files. Otherwise use the provided scope.
 
 2. Launch the `design-auditor` subagent with a self-contained prompt:
-   - The resolved scope (component names / file paths).
-   - Instruct it to read `.claude/project.json` for tokens path, components_spec, flow_spec, and figma config.
+   - The resolved scope (component names / file paths) as `changed_files` so the agent does not rediscover scope by grepping `frontend_root`.
+   - Inline the relevant fields from `.claude/project.json` (tokens path, components_spec, flow_spec, figma config) — read it once here, don't make the agent re-read it.
+   - Token-sync and Figma `get_variable_defs` are opt-in via `--full`; default is per-component audit only.
    - Ask for the standard audit output.
 
 3. Print the audit result verbatim. Do NOT soften FAILs, do NOT "interpret" gaps into your own words — the auditor's output is the gate.
