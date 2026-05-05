@@ -11,9 +11,13 @@
     "components_spec": "path/to/component-spec.md",
     "flow_spec": "path/to/flow-spec.md",
     "copy_guide": "path/to/copy-guide.md",
+    "principles": null,
+    "mockups_dir": null,
+    "artifacts_dir": null,
     "figma": {
       "file_key": null,
-      "node_id": null
+      "node_id": null,
+      "screens": {}
     }
   },
   "migrations": "path/to/migrations/",
