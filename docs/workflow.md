@@ -2,6 +2,38 @@
 
 Each phase of work passes through five layers. Skipping a layer is how codebases rot.
 
+## At a glance
+
+```mermaid
+flowchart TD
+    Spec([Your spec — plain English])
+
+    Spec --> Intake["/spec-intake<br/><i>haiku agent</i>"]
+    Intake --> Plan["Plan mode<br/><i>you read & approve</i>"]
+    Plan --> UI{Has UI?}
+
+    UI -- yes --> Wire["/ux-wireframe"]
+    Wire --> Mock["/ux-mockup"]
+    Mock --> Approve(["Human approval<br/>.design-approved-{scope}"])
+    Approve --> FE["/frontend-build<br/><i>hard-gated on approval</i>"]
+    FE --> Impl
+
+    UI -- no --> Impl
+
+    Impl["Implementation<br/><i>auto-lint · tsc-check · pre-git-check<br/>fire automatically</i>"]
+    Impl --> TG{"/test-gate"}
+    TG -- pass --> DG{"/design-gate"}
+    DG -- pass --> SG{"/schema-gate"}
+    SG -- pass --> Deploy["/deploy-gate &lt;env&gt;"]
+    Deploy --> Hand([/handoff &lt;phase&gt;<br/>decisions captured])
+
+    TG -- fail --> Impl
+    DG -- fail --> Impl
+    SG -- fail --> Impl
+```
+
+Diamonds are gates — shell-enforced checkpoints the agent cannot talk past. The verify gates run only when relevant: skip `/design-gate` if the change has no UI, `/schema-gate` if there's no migration. The design ladder (`/ux-wireframe` → `/ux-mockup` → human approval) is layer 1.7 — optional but required when UI is involved, because `/frontend-build` is hard-gated on the `.design-approved-{scope}` marker.
+
 ## Layer 1 — Intake
 
 `/spec-intake <spec-file>`

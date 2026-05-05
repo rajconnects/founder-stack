@@ -1,6 +1,6 @@
 # Quickstart
 
-Five minutes from clone to first spec.
+Five minutes from clone to first spec. This page covers the **fresh repo** path. For existing repos or repos with another harness installed, read [`install.md`](install.md) first.
 
 ## 1. Install the framework
 
@@ -19,7 +19,7 @@ git init
 ~/founder-stack/scripts/init-project.sh
 ```
 
-`install.sh` symlinks the workflow's commands, agents, hooks, and playbook into `.claude/`.
+`install.sh` symlinks the workflow's commands, agents, hooks, and playbook into `.claude/`, then wires the hooks into `.claude/settings.json` so they actually fire.
 `init-project.sh` asks 7 questions and writes a `project.json` and a starter `CLAUDE.md`.
 
 ## 3. Write your first spec
@@ -74,6 +74,8 @@ The handoff command prompts you to log open decisions. They land in `decisions/`
 
 ## What's next
 
-- Read [`docs/workflow.md`](workflow.md) for the full 5-layer model.
-- Read [`docs/gates.md`](gates.md) for what each gate actually checks.
-- Read [`docs/decision-traces.md`](decision-traces.md) for trace philosophy.
+- Read [`workflow.md`](workflow.md) for the full 5-layer model and the workflow diagram.
+- Read [`gates.md`](gates.md) for what each gate actually checks.
+- Read [`install.md`](install.md) for installing into an existing repo or alongside another harness.
+- Read [`session-hygiene.md`](session-hygiene.md) for when to `/clear` vs `/compact` between layers.
+- Read [`decision-traces.md`](decision-traces.md) for trace philosophy.

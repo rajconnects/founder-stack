@@ -5,10 +5,10 @@
 This is the workflow used to take a real SaaS from blank repo to deployed beta in 13 days, solo, without writing a line of code by hand. It's opinionated, gate-driven, and refuses to let you skip the parts that matter.
 
 <p align="center">
-  <img src="assets/Workflow-Summary.png" alt="Spec to production workflow" width="800">
+  <img src="assets/Workflow-Diagram-2.png" alt="Spec to production workflow — five stages with the commands and agents that run in each" width="900">
 </p>
 
-<!-- TODO: regenerate Workflow-Summary.png to show the layer 1.7 DESIGN ladder (/ux-wireframe → /ux-mockup → human approval) and the /frontend-build hard gate. -->
+> The five stages each list the commands and agents that run inside them. Diamonds are gates — shell-enforced checkpoints the agent cannot talk past. Full version with stage-by-stage detail in [`docs/workflow.md`](docs/workflow.md).
 
 
 ## What's in here
@@ -30,9 +30,11 @@ git init   # if not already a repo
 ~/founder-stack/scripts/init-project.sh
 ```
 
-`install.sh` symlinks the workflow into your project's `.claude/`. `init-project.sh` walks you through generating a `project.json` and a starter `CLAUDE.md`.
+`install.sh` symlinks the workflow into your project's `.claude/` and wires the framework's hooks into `.claude/settings.json` automatically. `init-project.sh` walks you through generating a `project.json` and a starter `CLAUDE.md`.
 
 Open Claude Code in that directory and try `/spec-intake` to begin.
+
+> Installing into an existing repo, or one that already has another harness or global commands? Read [`docs/install.md`](docs/install.md) — it covers the three deploy scenarios and what to consider for each.
 
 ## Why "for non-technical founders"?
 
