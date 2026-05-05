@@ -54,6 +54,17 @@ link_file "$FRAMEWORK_DIR/workflow/Engineering-Playbook.md" "$TARGET_DIR/.claude
 link_file "$FRAMEWORK_DIR/workflow/project.example.json" "$TARGET_DIR/.claude/project.example.json"
 
 echo ""
+echo "Wiring hooks into .claude/settings.json ..."
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "  warn: python3 not found — skipping hook wiring."
+  echo "        Hook scripts are linked but Claude Code will not fire them"
+  echo "        until entries are added to .claude/settings.json by hand."
+elif ! python3 "$FRAMEWORK_DIR/scripts/wire-hooks.py" "$TARGET_DIR/.claude/settings.json"; then
+  echo "  warn: hook wiring failed. Hook scripts are linked but not registered."
+  echo "        Inspect .claude/settings.json and re-run scripts/wire-hooks.py manually."
+fi
+
+echo ""
 echo "Done. Linked: $linked. Skipped: $skipped."
 echo ""
 echo "Next steps:"
