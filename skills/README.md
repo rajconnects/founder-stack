@@ -2,11 +2,13 @@
 
 Optional reasoning packs that complement the workflow. Skills are smaller, more focused than commands — they're invocable patterns the agent can use during any conversation.
 
-## Categories
+## Planned categories
 
-- **strategy/** — decision capture, war cabinet, grilling proposals
+- **strategy/** — decision capture, multi-perspective deliberation, proposal stress-tests
 - **product/** — spec writing, handoff docs
 - **ops/** — note logging
+
+These directories are empty in v0.1. The names are placeholders for the v0.2 skill pack — nothing here ships today.
 
 ## Status
 

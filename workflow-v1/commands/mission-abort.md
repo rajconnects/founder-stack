@@ -39,7 +39,7 @@ You are aborting an in-flight mission.
    - Set `state.json` `status: aborted`. Append `error_log` entry with timestamp + the parsed reason (or `"user-initiated abort"` if empty).
    - Save state atomically.
    - Append to `log.md`: `<timestamp> | mission aborted by user`.
-   - **Close the coordination.json row** if it exists: set `status: completed`, `completed: <iso>`. **Do not** use `completed_unclean` — that status triggers v0.1's `coord-cleanup.sh` to force-remove the worktree, which would defeat the audit-trail guarantee. The mission-level "aborted" signal lives in `state.json.status`, not in the coordination row.
+   - **Close the coordination.json row** if it exists: set `status: completed`, `completed: <iso>`. **Do not** use `completed_unclean` — that status is reserved for crashed sessions and could trigger a future automated sweep to remove the worktree, which would defeat the audit-trail guarantee. The mission-level "aborted" signal lives in `state.json.status`, not in the coordination row.
    - Do **not** delete files. Do **not** call memory-broker. The mission directory and the worktree are preserved for audit.
 
 7. **Worktree cleanup hint.** If `state.worktree` is set, print:

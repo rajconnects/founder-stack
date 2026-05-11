@@ -32,7 +32,7 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 | Docs auditor | `docs-auditor` agent (haiku) | Catches docs drift — broken file refs, dead `/command` refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff. Dispatched automatically at mission completion, or manually via `/docs-gate`. |
 | Memory broker | `memory-broker` agent (haiku) | Reads and writes cross-mission memory. Local files by default; Mem0 over HTTP if configured. |
 
-## The five commands
+## The six commands
 
 | Command | What it does |
 |---|---|
@@ -41,6 +41,7 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 | `/mission-resume <id>` | Resume a paused or blocked mission in a fresh session. |
 | `/mission-abort <id>` | Terminate a mission. Preserves the directory for audit. Does not roll back code changes. |
 | `/mission-tick <id>` | Internal — fired by `/loop` on schedule. Do not invoke directly. |
+| `/docs-gate [scope]` | Run the docs-auditor over framework documentation to catch drift (broken file refs, dead `/command` refs, unused `project.example.*.json` keys, CHANGELOG-vs-diff). Auto-dispatched at mission completion; also runnable standalone. |
 
 ## What happens when you run `/mission`
 

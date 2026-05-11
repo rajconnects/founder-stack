@@ -15,9 +15,9 @@ This is the workflow used to take a real SaaS from blank repo to deployed beta i
 
 - **The Workflow (v0.1, stable)** — `Engineering-Playbook.md` plus 15 slash commands, 8 subagents, and 5 shell hooks that enforce a build cycle: intake → (challenge) → (design) → plan → execute → verify → ship. The optional `design` layer (`/ux-wireframe` → `/ux-mockup` with human approval) lands designs as a source of truth before frontend code is written; `/frontend-build` then converts the approved design into a brief + scaffold the main agent implements against (hard-gated on the approval marker).
 - **Autonomous Missions (v1 preview)** — `/mission` scopes a goal, writes a validation contract for your approval, then dispatches a feature-worker (sonnet), scrutiny-validator (sonnet), and v0.1 auditors on a `/loop` tick — designed for overnight runs. Each mission runs in its own `git worktree` for filesystem isolation. Orchestration logic runs in your main agent thread (Opus recommended) — sub-agent nesting is blocked by Claude Code, so the slash commands execute procedure files directly rather than dispatching a meta-orchestrator agent. See [`docs/missions.md`](docs/missions.md).
-- **Skills** — optional reasoning packs (decision traces, war cabinet, grill, zoom-out).
+- **Skills** — optional reasoning packs, modeled on [mattpocock/skills](https://github.com/mattpocock/skills). Planned for v0.2; the v0.1 release ships the core workflow only. (Note: `/grill` and `/zoom-out` are slash commands in `workflow/commands/`, not skills — they live with the workflow because they're user-invoked, not delegated sub-tasks.)
 - **Templates** — parameterized `CLAUDE.md` and `project.json` for new projects.
-- **Init script** — interactive setup that asks 6 questions and writes your project config.
+- **Init script** — interactive setup that asks 8 questions and writes your project config.
 
 
 
@@ -45,6 +45,25 @@ Open Claude Code in that directory and try `/spec-intake` to begin.
 | **Autonomous mode** (v1 preview) | `/mission "<goal>"` → `/loop /mission-tick <id>` | The `/mission*` slash commands run an orchestration procedure in your main agent thread: scope the goal with you, write a validation contract for your approval, then dispatch workers and validators on a `/loop` tick until done. Right for overnight runs on crisp, well-scoped features. **Run on Opus** — orchestration logic inherits your session model, and the planning/retry passes are noticeably weaker on Sonnet. |
 
 Both modes coexist — install v1 additively on top of v0.1 with `~/founder-stack/scripts/install-v1.sh`. v1 reuses v0.1's gates internally — the tick procedure dispatches `design-auditor` and `schema-analyst` in parallel with `scrutiny-validator` when applicable, so there's one source of truth per check.
+
+## Documentation
+
+Start with **Quickstart** if you're new. Skim **Workflow** and **Gates** before your first phase. Read **Install** when going beyond a fresh repo. Read **Missions** when you're ready for autonomous mode.
+
+| Doc | When to read |
+|---|---|
+| [`docs/quickstart.md`](docs/quickstart.md) | Five minutes from clone to first spec. The fresh-repo path. |
+| [`docs/workflow.md`](docs/workflow.md) | The five-layer build cycle. Diagram + per-layer reference. |
+| [`docs/gates.md`](docs/gates.md) | What each gate (`/test-gate`, `/design-gate`, `/schema-gate`, `/deploy-gate`, `/publish-gate`) actually checks. |
+| [`docs/install.md`](docs/install.md) | Three install scenarios (fresh / existing / harness-already-present), verification snippets, gotchas. |
+| [`docs/missions.md`](docs/missions.md) | Autonomous mode (v1 preview) — orchestrator, workers, validators, the contract, overnight runs. |
+| [`docs/decision-traces.md`](docs/decision-traces.md) | What deserves a trace, the schema, lifecycle, anti-patterns. |
+| [`docs/session-hygiene.md`](docs/session-hygiene.md) | When to `/clear` vs `/compact` between layers. |
+| [`docs/coordination.md`](docs/coordination.md) | Multi-terminal/multi-session protocol via `coordination.json`. |
+| [`docs/for-non-tech-founders.md`](docs/for-non-tech-founders.md) | The framing essay — what process buys you when you can't read the diff. |
+| [`CONTEXT.md`](CONTEXT.md) | Why this framework exists. The thesis in three principles. |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release log with rationale, tradeoffs, and what each release deliberately didn't do. |
+| [`workflow/Engineering-Playbook.md`](workflow/Engineering-Playbook.md) | The portable spec that travels with `.claude/` into installed projects. The reference. |
 
 ## Why "for non-technical founders"?
 

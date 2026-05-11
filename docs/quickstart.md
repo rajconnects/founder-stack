@@ -20,7 +20,7 @@ git init
 ```
 
 `install.sh` symlinks the workflow's commands, agents, hooks, and playbook into `.claude/`, then wires the hooks into `.claude/settings.json` so they actually fire.
-`init-project.sh` asks 7 questions and writes a `project.json` and a starter `CLAUDE.md`.
+`init-project.sh` asks 8 questions and writes a `project.json` and a starter `CLAUDE.md`.
 
 ## 3. Write your first spec
 

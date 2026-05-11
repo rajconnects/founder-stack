@@ -6,12 +6,12 @@ For shared concepts (gate philosophy, session hygiene, model tiers, coordination
 
 ## What v1 adds
 
-A single new layer above v0.1's eight:
+A single new layer above v0.1's five core (plus four optional):
 
 ```
 0.  MISSION    Autonomous orchestrator → workers → validators → handoff → memory
-               drives layers 1–7 below for you. /mission, /mission-tick (via /loop),
-               /mission-status, /mission-resume, /mission-abort.
+               drives the v0.1 layers below for you. /mission, /mission-tick (via /loop),
+               /mission-status, /mission-resume, /mission-abort, /docs-gate.
 ```
 
 The v0.1 layers (INTAKE → SHIP → REFLECT) still exist and still work standalone. v1 just gives you an autonomous driver for them.

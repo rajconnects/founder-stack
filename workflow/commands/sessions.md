@@ -43,4 +43,4 @@ Print the full row for `<id>` as pretty JSON. Resolve `<id>` against either `id`
 
 - This command is read-mostly. `clean` is the only writer beyond status flips. Never mutate the `claims` of another session — those are owned by their writer.
 - Heartbeat ages are computed against the system clock at command run.
-- For routine operation, the scheduled cleanup script (`.claude/scripts/coord-cleanup.sh`) handles `clean` non-interactively. `/sessions clean` is the manual lever.
+- `/sessions clean` is the only sweep mechanism in v0.1. A scheduled background script is on the roadmap; until then, run `/sessions clean` manually when `list` shows stale rows.

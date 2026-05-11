@@ -41,7 +41,7 @@ You are running the end-of-phase handoff.
    - Open decisions surfaced during the phase (see step 6).
    - Next-phase entry criteria.
 
-6. **Open decisions scan.** Ask the user: "Did this phase surface any decisions that need capturing? (yes/no/list)". If yes or a list is given, invoke the existing `decision-trace-capture` skill with the enumerated decisions as input. Let that skill handle trace file generation; do not duplicate.
+6. **Open decisions scan.** Ask the user: "Did this phase surface any decisions that need capturing? (yes/no/list)". If yes or a list is given, capture each one as a trace file in `decision_traces` (path from `project.json`) using the schema documented in `docs/decision-traces.md` — `id`, `date`, `title`, `status`, `decided_by`, `decision`, `alternatives_rejected[]`, `rationale`, `revisit_triggers[]`. If the project has a `decision-trace-capture` skill installed, delegate to it instead. One file per decision.
 
 7. **Update build-status.** Append or update the section for this phase in `build_status_file`: items shipped, items deferred, known risks. Preserve existing structure.
 

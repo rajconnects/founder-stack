@@ -2,7 +2,7 @@
 
 The portable engineering workflow that travels with `.claude/`. Copy this tree to any new project, drop in a fresh `project.json`, and the workflow runs.
 
-## The eight layers
+## The layers — five core, four optional
 
 ```
 1.  INTAKE     Spec → executable plan             → /spec-intake
@@ -16,7 +16,7 @@ The portable engineering workflow that travels with `.claude/`. Copy this tree t
 6.  REFLECT    Post-phase architectural review    → /architecture-review  ← optional, between handoff and next start-build
 ```
 
-Verify (layer 4) gets the sharpest tooling — that's where spec-to-code drift and unsafe migrations do the most damage. Layers 1.5, 1.7, 2.5, and 6 are optional. The context-and-coherence layers (1.5, 2.5, 6) are adapted from `mattpocock/skills` (`grill-with-docs`, `zoom-out`, `improve-codebase-architecture`) and adopted as portable contracts; each reads `context_doc`, `glossary_doc`, and `decision_records` from `project.json`. Layer 1.7 (DESIGN) is the design-before-code ladder for frontend specs: `/ux-wireframe` produces low-fi contracts and Figma frames; `/ux-mockup` refines them into high-fi mockups and runs the human approve/iterate/reject ritual.
+**Layers 1, 2, 3, 4, and 5 are the core cycle** — every phase passes through them. **Layers 1.5, 1.7, 2.5, and 6 are optional** and fire only when the situation calls for them. Verify (layer 4) gets the sharpest tooling — that's where spec-to-code drift and unsafe migrations do the most damage. The context-and-coherence layers (1.5, 2.5, 6) are adapted from `mattpocock/skills` (`grill-with-docs`, `zoom-out`, `improve-codebase-architecture`) and adopted as portable contracts; each reads `context_doc`, `glossary_doc`, and `decision_records` from `project.json`. Layer 1.7 (DESIGN) is the design-before-code ladder for frontend specs: `/ux-wireframe` produces low-fi contracts and Figma frames; `/ux-mockup` refines them into high-fi mockups and runs the human approve/iterate/reject ritual.
 
 `/publish-gate` (layer 5, sibling of `/deploy-gate`) catches the "code worked locally but the published tarball is broken" bug class. Run `npm pack` → install in tmpdir → run a smoke command → assert expected output. The complementary inputs `real_corpora` (test-gate input) and `schemas_of_record` (handoff drift check) live in `project.json`. See "Reality-check inputs" below.
 
@@ -49,7 +49,7 @@ Parallel Claude Code sessions are first-class in the workflow, not an exception.
 | `/start-build <phase>` | Pre-sweep stale rows → conflict-check siblings → run intake (or capture plan summary) → spawn worktree → write claim row. |
 | `/sessions [list\|show\|clean]` | Inspect or sweep state. |
 | `/handoff <phase>` | Generate handoff doc + close session row + remove worktree (with user confirm). |
-| `.claude/scripts/coord-cleanup.sh` | Background sweep for stale rows + orphan worktrees. Run via cron / `/schedule` routine. Never force-removes worktrees with uncommitted work — surfaces them instead. |
+| `/sessions clean` | Manual sweep for stale rows. (A scheduled background sweep is on the roadmap; today, run this command when you suspect crashed siblings.) |
 
 ### Severity convention
 
@@ -67,7 +67,7 @@ When in doubt, mark major. The cost of a sibling pausing is much lower than the 
 
 ### Why this slots in across all layers
 
-The five-layer flow (Intake → Plan → Execute → Verify → Ship) describes *one session's* journey. Coordination describes *between-session* hygiene and applies the moment a second terminal exists. `/start-build` is the gateway; `/handoff` is the exit ramp; `coord-cleanup.sh` is the background safety net.
+The five-layer flow (Intake → Plan → Execute → Verify → Ship) describes *one session's* journey. Coordination describes *between-session* hygiene and applies the moment a second terminal exists. `/start-build` is the gateway; `/handoff` is the exit ramp; `/sessions clean` is the manual sweep when a sibling has crashed.
 
 ## The typical phase
 
@@ -255,7 +255,7 @@ A gate has a single job (one question, one verdict). A config field tells an exi
 
 1. Copy `.claude/` to the new repo.
 2. `cp .claude/project.example.json .claude/project.json`. Edit paths.
-3. **Required for the seven-layer flow:**
+3. **Required for the five-layer core flow:**
    - `spec_roots`, `test_commands`, `test_roots`, `migrations`, `deploy_targets`, `decision_traces`, `handoff_template`, `handoff_output_dir`, `build_status_file` — for layers 1, 3, 4, 5.
 4. **Required additionally for layers 1.5, 2.5, and 6:**
    - `context_doc` — path to the project's primary thesis/context document (e.g. `CLAUDE.md`, `CONTEXT.md`, `README.md` if minimal).
@@ -270,7 +270,7 @@ A gate has a single job (one question, one verdict). A config field tells an exi
 7. Confirm `Read` / `Grep` / `Bash` permissions for the new repo's paths.
 8. Restart Claude Code so new commands and agents are picked up.
 
-If `context_doc` or `decision_records` is null, `/grill`, `/zoom-out`, and `/architecture-review` degrade gracefully — they print a one-line "no context configured" warning and run with reduced fidelity. Same for the reality-check inputs: omit the array, the relevant gate-step is skipped. The seven-layer flow still runs unchanged.
+If `context_doc` or `decision_records` is null, `/grill`, `/zoom-out`, and `/architecture-review` degrade gracefully — they print a one-line "no context configured" warning and run with reduced fidelity. Same for the reality-check inputs: omit the array, the relevant gate-step is skipped. The core five-layer flow still runs unchanged.
 
 If `stack.db` does not match a supported provider, `/schema-gate` errors out (unchanged behavior).
 

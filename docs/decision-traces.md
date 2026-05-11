@@ -52,7 +52,7 @@ What does NOT deserve a trace:
 ## Status values
 
 - `open` — decision pending
-- `contested` — disagreement in flight, war-cabinet may help
+- `contested` — disagreement in flight, revisit with stakeholders before resolving
 - `resolved` — decided
 - `superseded` — a later trace replaced this one (link in `superseded_by`)
 
