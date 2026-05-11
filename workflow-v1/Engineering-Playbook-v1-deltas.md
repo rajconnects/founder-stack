@@ -24,7 +24,23 @@ The v0.1 layers (INTAKE → SHIP → REFLECT) still exist and still work standal
 | Worker | `feature-worker` | sonnet | Implements one feature against its contract slice, runs local checks, emits structured handoff |
 | Scrutiny validator | `scrutiny-validator` | sonnet | Adversarial fresh-context check of worker's claims; dispatches v0.1 auditors (`design-auditor`, `schema-analyst`) as needed; emits PASS/FAIL |
 | User-flow tester | `user-flow-tester` | sonnet | Drives `mcp__playwright__*` against a reachable preview URL; executes the contract's `user_flows[]` verbs in a real browser; captures screenshots, console errors, failed network requests; emits PASS/FAIL. Auto-skipped when `mission_user_test.preview_url_command` is null. |
+| Docs auditor | `docs-auditor` | haiku | Catches drift between framework docs and the actual repo: broken file refs, dead slash-command refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff overclaim/underclaim. Dispatched by `mission-orchestrator` in Procedure D, or directly via `/docs-gate`. |
 | Memory broker | `memory-broker` | haiku | Single seam for cross-mission memory; local files by default, Mem0 over HTTP if configured |
+
+## Docs drift detection
+
+`/docs-gate [scope]` runs the `docs-auditor` (haiku) over the framework's published documentation and catches concrete inconsistencies:
+
+- **Broken file references** — paths in markdown links or inline code spans that don't exist on disk.
+- **Dead slash-command references** — `/command-name` mentions in docs where no matching `workflow*/commands/<name>.md` exists. Built-in Claude Code commands (`/clear`, `/loop`, `/schedule`, etc.) are allowlisted.
+- **Unused `project.example.*.json` keys** — top-level keys in either `project.example.json` (v0.1) or `project.example.v1.json` that no agent, command, hook, or doc actually reads. Catches the case where a config field outlives the feature that read it.
+- **CHANGELOG-vs-diff (advisory)** — for the top-most CHANGELOG entry, compares the "Specifics shipped" bullet list against `git diff --name-only` over the relevant range. Surfaces meaningful overclaim (entry mentions a file not in the diff) and underclaim (a substantive file change with no CHANGELOG mention). This pass uses judgment, not strict matching — it doesn't fail the verdict, just flags for review.
+
+Scopes: `changelog`, `readme`, `playbook`, `docs`, `full` (default). The `mission-completion` scope is what `mission-orchestrator` uses internally — same passes, scoped to the mission's commit range.
+
+**Mission integration:** at mission completion (Procedure D), the orchestrator auto-dispatches `docs-auditor` with `SCOPE: mission-completion` before writing memory. A FAIL doesn't block mission completion — code correctness is the gate, docs drift is a separate concern surfaced in the completion summary and `handoffs/docs-audit.md` for the human to address before merging the PR.
+
+**Framework-dev vs. user-install mode.** The auditor's passes (b) and (c) are framework-shaped — they check for the framework's own commands and `project.example.*.json` keys. In a user's product install (where `.claude/` is symlinked but the framework source tree isn't at the root), passes (b) and (c) return empty results harmlessly. Pass (a) still works (catches broken file refs in the user's own docs/README), as does pass (d) (CHANGELOG-vs-diff on the user's own diff range). v1.2 will add an explicit mode flag so the auditor can scan a user's product docs more aggressively without also looking for framework-internal artifacts.
 
 ## Two validators, two failure classes
 
@@ -165,7 +181,6 @@ All v1-specific keys live in `project.json` under new top-level fields. See `wor
 ## What v1 explicitly does **not** do (yet)
 
 - Multi-feature decomposition with dependency graphs — v1.1.
-- `docs-auditor` subagent + `/docs-gate` (catches CHANGELOG/README/playbook drift against the actual diff; runs in orchestrator Procedure D before memory write) — v1.1.
 - Container isolation for destructive-command blast radius (`rm -rf` etc. still hit host today) — v1.1.
 - Mem0 semantic search wired through (broker has the seam; v1.0 is keyword-match local) — v1.2.
 - Framework self-evolution (mission outcomes propose edits to `workflow-v1/`) — v1.2.

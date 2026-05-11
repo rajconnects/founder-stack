@@ -2,6 +2,46 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: docs-auditor catches drift between docs and the actual repo
+
+### The realization
+
+The framework's CLAUDE.md is explicit: this is a published framework, every file in `workflow/` and `workflow-v1/` ends up symlinked into someone else's project, every command and agent is a public interface. So when a README mentions `/spec-intake` that's been renamed, or a CHANGELOG bullet claims a file that was never committed, or `project.example.v1.json` has a key no agent reads — that drift lands directly in user installs as silently-broken behavior. The risk is highest at exactly the surfaces non-technical founders read first: README, CHANGELOG, the playbook, the install guide.
+
+Every other gate the framework ships is for *code* drift. The framework's own *documentation* has been hand-maintained — which works until it doesn't. The three earlier v1.1 commits today landed before this one and each surfaced a small docs cleanup as part of the work; with `docs-auditor` running, that catching happens deterministically instead of by my noticing.
+
+### The fix, in one sentence
+
+**Ship `docs-auditor` (haiku) that runs four passes over framework documentation — broken file refs, dead slash-command refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff — exposed as `/docs-gate` for humans and auto-dispatched by `mission-orchestrator` in Procedure D before the memory write.**
+
+### Specifics shipped this release
+
+- `workflow-v1/agents/docs-auditor.md` — new agent. Read-only tool surface (Read, Grep, Glob, Bash for `git diff`). Four passes:
+  - **(a) Broken file references.** Inline code spans containing `/` or known extensions, and markdown links to relative paths — verifies each exists on disk. Skips fenced-block examples and template placeholders.
+  - **(b) Dead slash-command references.** Greps for `/<name>` patterns; checks each against `workflow*/commands/<name>.md`. Allowlists built-in Claude Code commands (`/clear`, `/loop`, `/schedule`, etc.) so they don't flag.
+  - **(c) Unused config keys.** For each top-level key in `workflow/project.example.json` and `workflow-v1/project.example.v1.json`, greps across `workflow*/agents/`, `workflow*/commands/`, `workflow*/hooks/`, playbooks, and docs. Zero matches → flag. Skips `_comment` keys.
+  - **(d) CHANGELOG-vs-diff (advisory only).** Compares the top CHANGELOG entry's "Specifics shipped" bullets against `git diff --name-only` over the relevant range. Surfaces overclaim (entry names a file not in the diff) and underclaim (substantive file change with no bullet mention). Uses haiku-tier judgment to ignore trivial diffs (whitespace, comment tweaks).
+
+  Verdict structure: PASS if passes a–c return zero flags; pass d is informational. FAIL otherwise.
+- `workflow-v1/commands/docs-gate.md` — new slash command. Args: scope (`changelog | readme | playbook | docs | full`, default `full`) and optional `--range <git-range>` for pass d. Dispatches `docs-auditor`, prints verdict verbatim, does not auto-fix. The user owns drift resolution (sometimes a "broken" link is a real removal).
+- `workflow-v1/agents/mission-orchestrator.md` — Procedure D step 2 now auto-dispatches `docs-auditor` with `SCOPE: mission-completion` before composing the summary or writing memory. A FAIL doesn't block mission completion (code correctness is the gate; docs drift is a separate human concern) — the completion summary surfaces the gap and points to `handoffs/docs-audit.md`. Remaining Procedure D steps renumbered 3–9.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — new "Docs drift detection" section before the two-validators section. Adds a `docs-auditor` row to the roles table. Removes the corresponding v1.1 roadmap line.
+- `docs/missions.md` — roles table now lists `docs-auditor`. "What v1.0 doesn't do yet" loses the docs-auditor line.
+- `scripts/install-v1.sh` — no change needed; the install loop already iterates over every file in `workflow-v1/agents/` and `workflow-v1/commands/`, so the new files ship automatically. (Validated by re-reading the install script.)
+
+### What we deliberately didn't do
+
+- We did **not** make the docs-auditor write or rewrite docs. It only reports. A "broken file ref" might be a real removal the user wants to keep — the human resolves. Auto-fixing risks confidently silencing real signals.
+- We did **not** gate mission completion on docs PASS. Code correctness gates the mission; docs drift is a separate concern surfaced for the human to fix before merging the PR. Making docs a hard gate would block missions that successfully shipped code over a typo in the CHANGELOG — the wrong trade.
+- We did **not** ship a Markdown linter, link-checker, or grammar tool. Plenty exist (markdownlint, lychee, alex). The docs-auditor is scoped specifically to framework-as-public-interface drift — drift that's invisible to general-purpose linters because they don't know the framework's command inventory or config schema. The two aren't substitutes; users can run both.
+- We did **not** scan v0.1's `workflow/` for unused config keys against v1's project.example.v1.json (or vice versa). Each file is checked against its own consumer set. Cross-version drift is a separate, harder problem — flagged for v1.2 if it bites.
+- We did **not** flag every `/`-separated string as a path or every `/foo` as a slash-command. Pass (a) requires either a directory anchor (`./`, `workflow/`, `docs/`, etc.) or a known file extension; tool-list patterns like `Edit/Write/Read` are explicitly excluded. Pass (b) only matches commands inside backticks (the framework's docs convention) and skips lines containing `://`. Without these tighteners, the first `/docs-gate full` run on this very repo would flag dozens of false positives and train the user to ignore the gate — exactly the failure mode "deterministic where possible" discipline exists to prevent.
+- The auditor's framework-mode passes (b) and (c) **degrade to no-ops in user product installs** where the framework source tree isn't at the root — `.claude/` is symlinks, not source. Pass (a) and the advisory (d) still catch broken refs and CHANGELOG drift in the user's own docs. v1.2 adds an explicit mode flag for more aggressive user-product scanning.
+
+### The lesson worth carrying
+
+The framework's discipline has been: deterministic where possible, agent for genuine judgment. Docs drift fits that template precisely — broken refs and dead commands are bash-checkable; CHANGELOG-vs-diff is judgment. By making the deterministic passes hard-gate the verdict and the judgment pass advisory-only, the agent contributes value where it's irreplaceable (recognizing meaningful vs. trivial diffs) without false-positiving on the parts where bash already knows the answer. Most of the docs-auditor's runtime is grep and stat — and that's the right shape. The agent is the inspector of last resort, not the primary worker.
+
 ## 2026-05-11 — v1 missions: `--pace cron` for laptop-asleep overnight runs
 
 ### The realization

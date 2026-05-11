@@ -257,8 +257,21 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 ## Procedure D — mission completion
 
 1. Set `state.json` `status: completed`.
-2. Compose a 1–3 paragraph summary of the mission: what shipped, what surprised, what's deferred.
-3. Dispatch `memory-broker`:
+2. **Run docs-auditor on mission-completion scope.** Dispatch:
+
+   ```
+   subagent_type: docs-auditor
+   prompt: |
+     SCOPE: mission-completion
+     MISSION_ID: <id>
+     VERDICT_OUTPUT_PATH: <abs path to <mission_root>/<id>/handoffs/docs-audit.md>
+   ```
+
+   Read the returned verdict. If `Verdict: FAIL`: append the gaps to `log.md`, include a "docs-audit FAILed — fix before merge" line in the completion summary printed in step 6. Do **not** block mission completion on docs drift — code correctness is the gate, docs drift is a separate concern the human can address before merging the PR. The advisory CHANGELOG-vs-diff section is purely informational.
+
+3. Compose a 1–3 paragraph summary of the mission: what shipped, what surprised, what's deferred. If docs-auditor flagged real gaps in step 2, mention "docs-audit gaps remaining" with a pointer to `handoffs/docs-audit.md`.
+
+4. Dispatch `memory-broker`:
 
    ```
    OP: write
@@ -274,10 +287,10 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
    }
    ```
 
-4. Append final `log.md` entry.
-5. **Close the coordination.json row** for this mission: set `status: completed`, `completed: <iso>`.
-6. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
-7. **PR handoff.** If `state.worktree` is set, compose a PR body from the mission artifacts:
+5. Append final `log.md` entry.
+6. **Close the coordination.json row** for this mission: set `status: completed`, `completed: <iso>`.
+7. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
+8. **PR handoff.** If `state.worktree` is set, compose a PR body from the mission artifacts:
    - **Title:** the first line of `state.goal` (first 70 chars; fallback to the contract's `## Mission scope` line). If `state.github.issue_url` is set, append ` (closes #<issue-number>)`.
    - **Body:** assembled markdown from the contract's scope section, feature acceptance criteria checkmarks (✓ for each met AC across `verdicts`), scrutiny + user-test PASS summary, retry counts, and a `Generated autonomously by Founder Stack v1 mission <id>` footer. If `state.github.issue_url` is set, prepend `Closes <url>`.
 
@@ -300,7 +313,7 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
      git branch -D <state.worktree.branch>
    ```
    Do **not** execute these for the user when auto_pr is false.
-8. **Do not deploy.** Even with auto_pr, the orchestrator only opens the PR — merge and deploy decisions remain human.
+9. **Do not deploy.** Even with auto_pr, the orchestrator only opens the PR — merge and deploy decisions remain human.
 
 ## Guardrails
 

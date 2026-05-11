@@ -27,6 +27,7 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 | Worker | `feature-worker` (sonnet) | Implements one feature against its contract, runs local checks, emits a structured handoff. One feature per dispatch, clean context each time. |
 | Scrutiny validator | `scrutiny-validator` (sonnet) | Adversarially re-checks the worker's claims with fresh context, dispatches v0.1 auditors as needed, emits a PASS/FAIL verdict. |
 | User-flow tester | `user-flow-tester` (sonnet) | Drives a real browser via Playwright MCP against your preview URL. Executes the contract's user-flow assertions, captures screenshots and console errors. Auto-skipped when `mission_user_test.preview_url_command` is null. |
+| Docs auditor | `docs-auditor` (haiku) | Catches docs drift — broken file refs, dead `/command` refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff. Dispatched automatically in Procedure D, or manually via `/docs-gate`. |
 | Memory broker | `memory-broker` (haiku) | Reads and writes cross-mission memory. Local files by default; Mem0 over HTTP if configured. |
 
 ## The five commands
@@ -203,7 +204,6 @@ Cron pace makes every tick a cache miss, so cost-per-equivalent-throughput is hi
 ## What v1.0 doesn't do yet
 
 - Multi-feature decomposition with dependency graphs
-- `docs-auditor` for catching CHANGELOG/README drift
 - Container isolation for destructive-command blast radius
 - Mem0 semantic search (broker has the seam; the search call is local-only in v1.0)
 
