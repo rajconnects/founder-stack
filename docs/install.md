@@ -149,6 +149,30 @@ Symlinked projects pick up the change immediately — no reinstall needed. If a 
 
 The merger is idempotent — re-running on an unchanged framework adds zero entries.
 
+## Installing v1 autonomous missions (preview, additive)
+
+After v0.1 is installed, v1 ships as an additive layer — no v0.1 files are touched, and you opt in by typing `/mission` instead of `/spec-intake`.
+
+```bash
+~/founder-stack/scripts/install-v1.sh                   # current dir
+# or
+~/founder-stack/scripts/install-v1.sh /path/to/project  # specific dir
+```
+
+**What gets added:**
+
+- Five new slash commands: `/mission`, `/mission-tick`, `/mission-status`, `/mission-resume`, `/mission-abort`
+- Four new agents: `mission-orchestrator` (opus), `feature-worker` (sonnet), `scrutiny-validator` (sonnet), `memory-broker` (haiku)
+- Templates under `.claude/templates/v1/`: `state.schema.json`, `mission-contract.template.md`, `mission-handoff.template.md`
+- `Engineering-Playbook-v1-deltas.md` and `project.example.v1.json`
+- `.gitignore` entries (idempotent) for `missions/`, `memory/`, and `.claude/settings.local.json` — keeps mission metadata out of PRs the worker opens from the mission branch
+
+**What does NOT change:** existing v0.1 commands, agents, hooks, or settings. Users who never type `/mission` see no behavioral difference.
+
+**Optional config.** Merge keys from `.claude/project.example.v1.json` into your existing `.claude/project.json` to customize mission caps, model seats, or memory backend. Every v1 key has a documented default — you can skip this step entirely.
+
+Reference: [`missions.md`](missions.md).
+
 ## Uninstalling
 
 The framework is symlinks plus a settings.json registration. To remove:

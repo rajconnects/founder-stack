@@ -72,10 +72,29 @@ When the agent makes a non-obvious choice (architecture, scope cut, third-party 
 
 The handoff command prompts you to log open decisions. They land in `decisions/` as JSON files you can grep, link to, and revisit.
 
+## 6. Try autonomous mode (v1 preview, optional)
+
+Once you've shipped one or two phases by hand and you're comfortable with what the gates check, you can opt in to autonomous missions — an orchestrator drives the gates for you while you sleep.
+
+```bash
+~/founder-stack/scripts/install-v1.sh        # additive to v0.1; no v0.1 files touched
+```
+
+Then in Claude Code:
+
+```
+/mission "build a Counter component with persisted state, key must be 'counter:v1'"
+# answer the orchestrator's scope questions, approve the contract, then:
+/loop /mission-tick <id>                      # the orchestrator prints <id> on approval
+```
+
+Each mission runs in its own `git worktree` at `missions/<id>/worktree/`, so source-file edits stay isolated from your main checkout. Full reference: [`missions.md`](missions.md).
+
 ## What's next
 
 - Read [`workflow.md`](workflow.md) for the full 5-layer model and the workflow diagram.
 - Read [`gates.md`](gates.md) for what each gate actually checks.
 - Read [`install.md`](install.md) for installing into an existing repo or alongside another harness.
+- Read [`missions.md`](missions.md) for autonomous mode (v1 preview).
 - Read [`session-hygiene.md`](session-hygiene.md) for when to `/clear` vs `/compact` between layers.
 - Read [`decision-traces.md`](decision-traces.md) for trace philosophy.

@@ -57,3 +57,13 @@ The framework reduces *engineering* judgment to process. **Domain judgment stays
 The framework is Claude Code-first. The slash commands, subagents, and hooks are Claude Code-native. Cursor, Copilot, and Pi don't have first-class equivalents — porting loses the enforcement layer.
 
 Pick one tool. Go deep. The framework is the discipline; the tool is the host.
+
+## When you're ready for autonomy
+
+After you've shipped a few phases by hand and can read a handoff doc with confidence — meaning you can spot when the agent claims something it didn't actually do — you're ready to try **autonomous mode** (v1 preview).
+
+In autonomous mode, you describe a goal once, approve the validation contract the orchestrator writes for you, then walk away. The orchestrator dispatches a worker and a scrutiny-validator on a loop until the contract is satisfied or it hits a cap. Designed for overnight runs.
+
+The catch: this requires you to evaluate the **contract**, not the code. The contract is plain English plus a list of acceptance criteria — readable. If you can't tell whether a contract describes the feature you actually want, autonomous mode is premature. Go back to control mode for another few phases first.
+
+When you're ready: [`missions.md`](missions.md).

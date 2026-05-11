@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://founder-stack.dev/v1/state.schema.json",
+  "title": "Founder Stack v1 mission state",
+  "description": "Source of truth for an in-flight mission. The orchestrator reads and writes this file between dispatches. The conversation is ephemeral; this file is durable across session resumes.",
+  "type": "object",
+  "required": [
+    "mission_id",
+    "goal",
+    "status",
+    "features",
+    "current_feature_idx",
+    "current_step",
+    "caps",
+    "dispatches_total"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+-[a-f0-9]{4}$",
+      "description": "YYYY-MM-DD-<slug>-<4-char-hash>. The hash avoids collisions on same-day reruns."
+    },
+    "goal": { "type": "string", "minLength": 1 },
+    "pace": {
+      "type": "string",
+      "enum": ["local", "cron"],
+      "default": "local",
+      "description": "local: ScheduleWakeup inside /loop. cron: /schedule fires /mission-resume on cron."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["running", "paused", "blocked", "completed", "aborted"]
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^f[0-9]{2,}$" },
+          "name": { "type": "string" },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^f[0-9]{2,}$" },
+            "default": []
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed", "blocked"]
+          }
+        }
+      }
+    },
+    "current_feature_idx": { "type": "integer", "minimum": 0 },
+    "current_step": {
+      "type": "string",
+      "enum": ["contract", "worker", "scrutiny", "user-test", "handoff", "idle"]
+    },
+    "verdicts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scrutiny": { "type": "string", "enum": ["PASS", "FAIL"] },
+          "user_test": { "type": "string", "enum": ["PASS", "FAIL", "skipped"] },
+          "completed_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "default": {}
+    },
+    "retry_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "description": "Keyed by '<feature_id>:<step>', e.g. 'f01:worker', 'f01:scrutiny'.",
+      "default": {}
+    },
+    "caps": {
+      "type": "object",
+      "required": ["max_dispatches_per_feature", "max_total_dispatches"],
+      "additionalProperties": false,
+      "properties": {
+        "max_dispatches_per_feature": { "type": "integer", "minimum": 1 },
+        "max_total_dispatches": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "dispatches_total": { "type": "integer", "minimum": 0 },
+    "error_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["at", "step", "summary"],
+        "properties": {
+          "at": { "type": "string", "format": "date-time" },
+          "feature_id": { "type": "string" },
+          "step": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "default": []
+    },
+    "last_heartbeat": { "type": "string", "format": "date-time" },
+    "resume_requested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Orchestrator sets true when ~80% context consumed; the next /mission-resume bootstraps a fresh session."
+    },
+    "github": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issue_url": { "type": ["string", "null"] },
+        "pr_url": { "type": ["string", "null"] }
+      },
+      "default": { "issue_url": null, "pr_url": null }
+    }
+  }
+}

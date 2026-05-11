@@ -2,6 +2,8 @@
 
 Each phase of work passes through five layers. Skipping a layer is how codebases rot.
 
+> **Two ways to drive these layers.** In **control mode** (v0.1, default), you invoke each gate by hand: `/spec-intake` → `/test-gate` → `/design-gate` → `/handoff`. In **autonomous mode** (v1 preview, [`missions.md`](missions.md)), an orchestrator drives the layers for you while you sleep — it dispatches the same gates internally via Task tool, so there is one source of truth per check regardless of mode.
+
 ## At a glance
 
 ```mermaid

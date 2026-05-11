@@ -2,6 +2,53 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 preview: autonomous missions (orchestrator + worker + scrutiny)
+
+### The realization
+
+The v0.1 workflow is gate-driven but session-oriented: every phase needs a human at both ends. You write the spec, run `/spec-intake`, approve the plan, drive implementation, run `/test-gate` and `/design-gate`, write the handoff. The discipline works — but the founder is the bottleneck. Even when the spec is crisp and the gates would clearly pass, the framework can't run from spec to verified outcome without a person at the keyboard between every step.
+
+Three things made it clear v0.1 was leaving capability on the floor: the Factory Missions architecture (Luke at Factory's three-role talk on missions running 16 days unattended), Boris and Jarred's advanced Claude Code workflow demo on issue → PR autonomy in Bun, and the founder's own request to move up from per-step supervision to vision-and-architecture supervision.
+
+### The fix, in one sentence
+
+**Add an orchestrator that scopes the goal, writes a validation contract for human approval, then dispatches workers and validators on a `/loop` tick until the contract is satisfied — designed for overnight runs.**
+
+### Specifics shipped this release
+
+- `workflow-v1/agents/mission-orchestrator.md` — opus-tier orchestrator. Reads `state.json` as durable memory, dispatches workers and validators via Task tool, decides retry/advance/block at each step, self-paces via `ScheduleWakeup` inside `/loop` dynamic mode.
+- `workflow-v1/agents/feature-worker.md` — sonnet-tier. Implements one feature against its contract slice, runs local lint/tsc/tests, emits a structured handoff with `commands_run`, `files_touched`, `contract_coverage`, `issues_discovered` sections (front-matter machine-parsed by orchestrator).
+- `workflow-v1/agents/scrutiny-validator.md` — sonnet-tier. Adversarial fresh-context check: re-runs the worker's commands, dispatches v0.1 auditors (`design-auditor`, `schema-analyst`) directly via Task tool when scope warrants, judges contract coverage independently, flags honesty discrepancies (worker claimed exit 0 / file shows exit 1).
+- `workflow-v1/agents/memory-broker.md` — haiku-tier. Single seam for cross-mission memory. Local files default; Mem0 over HTTP behind a config flag. Other agents call the broker via Task tool — they never read `memory/` directly. Flipping the Mem0 flag changes nothing in upstream agents.
+- `workflow-v1/commands/{mission,mission-tick,mission-status,mission-resume,mission-abort}.md` — five new slash commands. `/mission` runs the synchronous scoping + contract-approval phase, then instructs the user to type `/loop /mission-tick <id>` to enter `/loop` dynamic mode for autonomous execution. Only `/loop` mode lets `ScheduleWakeup` actually fire — the two-step entry is deliberate (contract approval is a checkpoint the user must own) and load-bearing (without it, the loop never starts).
+- `workflow-v1/templates/state.schema.json` — JSON Schema for the mission state file. `state.json` is the durable source of truth; the conversation is ephemeral.
+- `workflow-v1/templates/mission-contract.template.md` — the contract is written **before** any worker dispatch and locked at user approval. Scrutiny failure triggers a worker retry with the prior handoff and verdict included, not a contract relaxation.
+- `workflow-v1/templates/mission-handoff.template.md` — required front-matter and required section order, so scrutiny can parse deterministically.
+- `workflow-v1/project.example.v1.json` — additive config schema with documented defaults. All v1 keys optional.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — thin deltas doc, references v0.1's playbook for shared concepts.
+- `scripts/install-v1.sh` — additive installer. Symlinks `workflow-v1/` content into the target repo's `.claude/` alongside v0.1; no v0.1 file is overwritten. Filenames are distinct, so commands and agents coexist in the same directories.
+- `docs/missions.md` — user-facing intro with the throwaway-repo verification path.
+- `README.md` — adds a one-line v1 preview pointer to `docs/missions.md`.
+
+### What we deliberately didn't do
+
+- We did **not** rewrite v0.1. `workflow/` stays frozen; v1 is `workflow-v1/`. Existing installs that never run `/mission` see zero behavioral change.
+- We did **not** ship a `cost_cap_usd` field. The orchestrator cannot introspect its own session spend from inside Claude Code, so a dollar cap with no enforcement path would be theater. `max_dispatches_per_feature` and `max_total_dispatches` are the cost proxies — observable and deterministic.
+- We did **not** centralize gate logic. The scrutiny validator dispatches the *same* v0.1 subagent files (`design-auditor`, `schema-analyst`) via Task tool, so there is one source of truth per gate. Slash commands remain unchanged for direct human use.
+- We did **not** wire user-flow testing in MVP. The orchestrator auto-skips the `user-test` step when `mission_user_test.preview_url_command` is null. v1.1 adds the Playwright-driven `user-flow-tester` subagent.
+- We did **not** integrate GitHub. v1.0 prints a suggested `gh pr create` invocation at completion; v1.1 will accept `--from-issue <url>` and auto-create the PR.
+- We did **not** ship cron pacing. `--pace cron` (via `/schedule`) is v1.1 — v1.0 is local-pace only (`ScheduleWakeup` inside `/loop`). MVP requires Claude Code to stay open overnight.
+
+### The autonomy delta, made testable
+
+The MVP's headline behavior is the **retry loop**: worker fails scrutiny → orchestrator re-dispatches with the failed handoff and scrutiny verdict in context, up to `max_dispatches_per_feature`. The verification path in `docs/missions.md` deliberately exercises this with a localStorage-key trap: the contract specifies a specific key (`counter:v1`), the worker is likely to initially pick a generic one, scrutiny fails on AC-3, the worker corrects on dispatch 2. If the orchestrator silently rewrites the contract instead of forcing a retry, the test fails — that's the wrong behavior.
+
+Without that demonstrable delta, v1 would just be a wrapper around v0.1 gates. With it, missions are genuinely autonomous.
+
+### The lesson worth carrying
+
+`state.json` is the load-bearing decision. Treating the conversation as ephemeral and the state file as durable is what lets a single-Opus session run for hours without the orchestrator's context bloating, and what lets `/mission-resume` bootstrap a fresh session cleanly when context does overflow. Every architectural choice flows from that: structured handoffs, machine-parsed verdicts, atomic state writes, retry counts in state rather than conversation. The orchestrator's prompt is a state machine; the conversation is just the engine that drives it.
+
 ## 2026-05-06 — Install guide for the messy scenarios + refreshed workflow diagram
 
 ### The realization

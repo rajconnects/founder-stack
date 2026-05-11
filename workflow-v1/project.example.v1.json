@@ -1,0 +1,39 @@
+{
+  "_comment": "v1 additions to .claude/project.json. Merge these keys into your existing project.json (the v0.1 keys are documented in ../workflow/project.example.json). Every v1 key is optional — defaults are documented below. The v1 mission orchestrator and its subagents read this file via the same mechanism as v0.1 (see workflow/agents/spec-translator.md step 1).",
+
+  "_mission_root_comment": "Where missions/<id>/ directories live. Relative to repo root. Default: 'missions/'.",
+  "mission_root": "missions/",
+
+  "_mission_model_seats_comment": "Per-role model assignment. The orchestrator runs hot (opus); workers and validators run on sonnet; the memory broker is a thin shim on haiku. Override if you want to experiment with model-per-seat diversity (e.g., a different family for the validator).",
+  "mission_model_seats": {
+    "orchestrator": "opus",
+    "worker": "sonnet",
+    "scrutiny": "sonnet",
+    "user_test": "sonnet",
+    "memory_broker": "haiku"
+  },
+
+  "_mission_caps_comment": "Hard caps and pacing knobs. Dispatch caps are observable and deterministic; cost is not (the orchestrator cannot introspect its session spend), so we cap dispatches as the cost proxy. Wake intervals: active 270s sits under the 5-min prompt-cache TTL so the cache stays warm; idle 1500s amortizes one cache miss over ~25 min of waiting.",
+  "mission_caps": {
+    "max_dispatches_per_feature": 3,
+    "max_total_dispatches": 50,
+    "default_wake_active_secs": 270,
+    "default_wake_idle_secs": 1500
+  },
+
+  "_memory_comment": "Cross-mission memory. Local mode writes markdown under <local_root>/missions/ and indexes via <local_root>/index.json. Mem0 mode (opt-in) mirrors writes to https://api.mem0.ai with Bearer auth from the env var named in api_key_env. Mem0 is augmentation, not replacement — local always writes. The memory-broker is the ONLY agent that reads these settings.",
+  "memory": {
+    "local_root": "memory/",
+    "mem0": {
+      "enabled": false,
+      "api_key_env": "MEM0_API_KEY",
+      "user_id_env": "MEM0_USER_ID"
+    }
+  },
+
+  "_mission_user_test_comment": "v1.1 feature. Configures the user-flow-tester subagent. preview_url_command is a shell command that prints a URL to stdout (e.g., 'vercel inspect --url' or 'echo http://localhost:5173'). When null, the orchestrator skips user-flow testing and writes verdicts.<fid>.user_test = 'skipped'. mcp names which MCP server drives the browser; v1.1 supports 'playwright' (mcp__playwright__*). 'glance' is planned for v1.2.",
+  "mission_user_test": {
+    "mcp": "playwright",
+    "preview_url_command": null
+  }
+}

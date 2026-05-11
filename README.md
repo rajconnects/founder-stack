@@ -13,7 +13,8 @@ This is the workflow used to take a real SaaS from blank repo to deployed beta i
 
 ## What's in here
 
-- **The Workflow** — `Engineering-Playbook.md` plus 15 slash commands, 8 subagents, and 5 shell hooks that enforce a build cycle: intake → (challenge) → (design) → plan → execute → verify → ship. The optional `design` layer (`/ux-wireframe` → `/ux-mockup` with human approval) lands designs as a source of truth before frontend code is written; `/frontend-build` then converts the approved design into a brief + scaffold the main agent implements against (hard-gated on the approval marker).
+- **The Workflow (v0.1, stable)** — `Engineering-Playbook.md` plus 15 slash commands, 8 subagents, and 5 shell hooks that enforce a build cycle: intake → (challenge) → (design) → plan → execute → verify → ship. The optional `design` layer (`/ux-wireframe` → `/ux-mockup` with human approval) lands designs as a source of truth before frontend code is written; `/frontend-build` then converts the approved design into a brief + scaffold the main agent implements against (hard-gated on the approval marker).
+- **Autonomous Missions (v1 preview)** — `/mission` kicks off an orchestrator (opus) that scopes a goal, writes a validation contract for your approval, then dispatches a feature-worker (sonnet) and a scrutiny-validator (sonnet) on a `/loop` tick — designed for overnight runs. Each mission runs in its own `git worktree` for filesystem isolation. See [`docs/missions.md`](docs/missions.md).
 - **Skills** — optional reasoning packs (decision traces, war cabinet, grill, zoom-out).
 - **Templates** — parameterized `CLAUDE.md` and `project.json` for new projects.
 - **Init script** — interactive setup that asks 6 questions and writes your project config.
@@ -35,6 +36,15 @@ git init   # if not already a repo
 Open Claude Code in that directory and try `/spec-intake` to begin.
 
 > Installing into an existing repo, or one that already has another harness or global commands? Read [`docs/install.md`](docs/install.md) — it covers the three deploy scenarios and what to consider for each.
+
+## Two ways to drive
+
+| Mode | Command | When |
+|---|---|---|
+| **Control mode** (v0.1, default) | `/spec-intake` → `/test-gate` → `/design-gate` → `/handoff` | You drive each gate. Hands-on, safety-net through process. Right when you're new to the framework, or when scope is exploratory. |
+| **Autonomous mode** (v1 preview) | `/mission "<goal>"` → `/loop /mission-tick <id>` | Orchestrator scopes the goal with you, writes a validation contract for your approval, then dispatches workers and validators on a `/loop` tick until done. Right for overnight runs on crisp, well-scoped features. |
+
+Both modes coexist — install v1 additively on top of v0.1 with `~/founder-stack/scripts/install-v1.sh`. v1 reuses v0.1's gates internally (the scrutiny-validator dispatches `design-auditor` and `schema-analyst` for you), so there's one source of truth per check.
 
 ## Why "for non-technical founders"?
 
