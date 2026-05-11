@@ -188,10 +188,21 @@ Combined: `/mission --from-issue https://github.com/<org>/<repo>/issues/42 --aut
 
 Requires `gh` CLI installed and authenticated.
 
+## Laptop-asleep overnight runs (`--pace cron`)
+
+Local pace requires Claude Code to stay open. If you want true hands-off — kick off, close the laptop, review in the morning — use cron pace:
+
+```
+/mission "<goal>" --pace cron
+```
+
+After contract approval, `/mission` invokes the `/schedule` skill to create a recurring routine named `mission-<id>` that fires `/mission-tick <id>` every `mission_caps.cron_interval_minutes` minutes (default 10). Each tick is a fresh session bootstrapped from `state.json` — the conversation is fully disposable. The routine auto-deletes when the mission reaches a terminal status.
+
+Cron pace makes every tick a cache miss, so cost-per-equivalent-throughput is higher than local pace. Tune `cron_interval_minutes` to balance — 5 minutes for active runs, 30 for trickle work.
+
 ## What v1.0 doesn't do yet
 
 - Multi-feature decomposition with dependency graphs
-- `--pace cron` (laptop-asleep missions via `/schedule`)
 - `docs-auditor` for catching CHANGELOG/README drift
 - Container isolation for destructive-command blast radius
 - Mem0 semantic search (broker has the seam; the search call is local-only in v1.0)

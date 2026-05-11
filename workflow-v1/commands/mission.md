@@ -39,11 +39,16 @@ You are kicking off a new Founder Stack v1 autonomous mission.
      INVOKED_BY: /mission
    ```
 
-4. When the orchestrator returns, print its summary verbatim. The summary will include the mission id and instructions for the user to type `/loop /mission-tick <id>` to enter autonomous loop mode. Do not synthesize on top of it.
+4. When the orchestrator returns, print its summary verbatim. Capture the `mission_id` and `pace` from its return line for the next step.
+
+5. **If `pace == "cron"`:** invoke the `/schedule` skill via the Skill tool to create a recurring routine that fires `/mission-tick <mission_id>` every `mission_caps.cron_interval_minutes` (default 10) minutes. The routine name should be `mission-<mission_id>` so subsequent commands (`/mission-tick`, `/mission-abort`, `/mission-resume`) can find and delete it by name. If routine creation fails, surface the error and tell the user they can fall back to `/loop /mission-tick <id>` for local pacing. Do not delete the mission directory on cron failure — the contract is still valid; the user just loses the cron-driven path.
+
+   **If `pace == "local"`:** the orchestrator's printed instructions already tell the user to type `/loop /mission-tick <id>`. Do nothing further.
 
 ## Notes
 
-- `/mission` runs the **synchronous** part of the mission: scoping conversation, contract authoring, contract approval, `state.json` initialization. After this, the user must type `/loop /mission-tick <id>` to enter `/loop` dynamic mode. **Only `/loop` dynamic mode lets `ScheduleWakeup` actually fire** — without it, the autonomous loop never advances.
-- This two-step entry (synchronous scope, then explicit `/loop` start) is intentional. Contract approval is a checkpoint the user must own; sliding straight into autonomous execution without that confirmation would be the wrong default.
+- `/mission` runs the **synchronous** part of the mission: scoping conversation, contract authoring, contract approval, `state.json` initialization, and (in cron pace) routine creation. After this, the autonomous loop runs.
+- In **local pace**, the user must explicitly type `/loop /mission-tick <id>` to enter `/loop` dynamic mode. Only `/loop` dynamic mode lets `ScheduleWakeup` actually fire — without it, the autonomous loop never advances.
+- In **cron pace**, the `/schedule` routine fires ticks on the cron schedule regardless of whether the user's terminal is open. Each tick is a fresh session bootstrapped from `state.json`. Better for laptop-asleep overnight runs; more cache misses (one per tick).
+- The two-step entry (synchronous scope, then explicit autonomous start) is intentional. Contract approval is a checkpoint the user must own; sliding straight into autonomous execution without that confirmation would be the wrong default.
 - Do not invoke `mission-orchestrator` outside of this command. Other entry points (`/mission-resume`, `/mission-abort`) have their own dispatching prompts.
-- `--pace cron` is v1.1. In v1.0, only `--pace local` is fully wired; the orchestrator will fall back to local with a warning if cron is requested.

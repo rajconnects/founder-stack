@@ -69,10 +69,12 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
    - `worktree`: from step 2b — `{ path, branch, base_ref, claude_dir_symlink }` if worktree mode is on, else omit the field entirely (null/absent).
    - `github`: `{ issue_url: <ISSUE_URL from step 1b, or null>, pr_url: null, auto_pr: <AUTO_PR from dispatching prompt, OR github.auto_pr_on_completion from project.json, default false> }`. `pr_url` gets populated in Procedure D when the PR is created.
 
-8. **Hand off to /loop.** Print to the user, verbatim:
+8. **Hand off based on pace.** Two paths:
+
+   **If `pace == "local"` (default):** print to the user, verbatim:
 
    ```
-   Mission <id> approved and ready to run autonomously.
+   Mission <id> approved and ready to run autonomously (pace: local).
 
    To start the autonomous loop, type:
      /loop /mission-tick <id>
@@ -81,7 +83,18 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
    Check progress any time with:  /mission-status <id>
    ```
 
-   Do **not** call `ScheduleWakeup` here. `ScheduleWakeup` only fires when the current session is in `/loop` dynamic mode, which the user enters by typing the command above. The first tick of that loop runs Procedure B (which does call `ScheduleWakeup` for subsequent ticks).
+   **If `pace == "cron"`:** print, verbatim:
+
+   ```
+   Mission <id> approved and ready to run autonomously (pace: cron).
+   /mission will create a /schedule routine to fire ticks every <cron_interval_minutes> minutes.
+   Check progress any time with:  /mission-status <id>
+   Cancel anytime with:           /mission-abort <id>
+   ```
+
+   In both cases, do **not** call `ScheduleWakeup` here. In local mode, the user enters `/loop /mission-tick <id>` to start; the first tick runs Procedure B (which calls `ScheduleWakeup` for subsequent ticks). In cron mode, `/mission` (the wrapping slash command) is responsible for creating the `/schedule` routine after you return.
+
+   **Return a one-line summary to the dispatching slash command** that includes `mission_id` and `pace`, so `/mission` knows whether to create the cron routine.
 
 ## Procedure B — tick
 
@@ -202,8 +215,8 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 7. **Save state, log, schedule next tick.** After every dispatch, before returning:
    - Save `state.json` (atomic write — use `Write` to a `.tmp` then `Bash mv`).
    - Append to `log.md` (one line per dispatch).
-   - Call `ScheduleWakeup` with `delaySeconds: <mission_caps.default_wake_active_secs or 270>`, **`prompt: "/mission-tick <id>"`** (the same prompt that fired this tick — `/loop` dynamic mode re-runs it), reason `"mission <id> next dispatch: <step>"`.
-   - Return briefly to the user with: `<id> | step <step> | <verdict-summary>`.
+   - **Local pace only:** call `ScheduleWakeup` with `delaySeconds: <mission_caps.default_wake_active_secs or 270>`, `prompt: "/mission-tick <id>"`, reason `"mission <id> next dispatch: <step>"`. In **cron pace**, do NOT call `ScheduleWakeup` — the next tick is cron-driven, not session-driven.
+   - Return briefly to the dispatching slash command with: `<id> | step <step> | <verdict-summary> | pace <pace> | status <status>`. The slash command (`/mission-tick`) uses `status` to decide whether to delete the cron routine when terminal.
    - **Skip the `ScheduleWakeup` call** if `status` transitioned to `completed`, `aborted`, or `blocked` this tick — the loop should not re-fire on terminal states.
 
 ## Procedure B-resume — sync setup after a resume

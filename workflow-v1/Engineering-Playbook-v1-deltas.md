@@ -103,6 +103,10 @@ Requires `gh` CLI installed and authenticated. The orchestrator does not install
 
 ## Pacing for overnight runs
 
+Two pacing modes, chosen at `/mission` time via `--pace local|cron` (default `local`):
+
+### `--pace local`
+
 The orchestrator self-paces with `ScheduleWakeup`, which only fires inside `/loop` dynamic mode. The entry sequence is therefore two steps:
 
 1. User types `/mission "<goal>"`. Orchestrator runs synchronously: scopes the goal, writes the contract, asks for approval, initializes `state.json`.
@@ -111,7 +115,22 @@ The orchestrator self-paces with `ScheduleWakeup`, which only fires inside `/loo
 - **Active dispatching:** wake at `mission_caps.default_wake_active_secs` (270s default). Under the 5-min prompt-cache TTL, so cache stays warm.
 - **Idle (waiting on deploy or human review):** wake at `mission_caps.default_wake_idle_secs` (1500s default). One cache miss, amortized.
 
-**Context overflow protection.** When the orchestrator detects ~40 conversation turns or ~150KB of tool-result bytes consumed in its session, it sets `resume_requested: true`, writes a one-line log entry, and exits. The next `/loop` wake re-enters via `/mission-resume <id>` in a fresh session, which boots only from `state.json` + the current feature's contract slice. The conversation is disposable; state is durable.
+Requires Claude Code stay open locally. Best for desk-machine overnight runs.
+
+### `--pace cron`
+
+Routes ticks through the `/schedule` skill — a cron-managed remote agent — so the mission survives laptop sleep, network drops, and terminal closes.
+
+1. `/mission ... --pace cron` runs synchronously (same scoping/contract/approval as local). After `state.json` is written, `/mission` invokes the `/schedule` skill via the Skill tool to create a routine named `mission-<id>` firing `/mission-tick <id>` every `mission_caps.cron_interval_minutes` minutes (default 10).
+2. Each cron fire runs `/mission-tick <id>` in a fresh session. The orchestrator (in tick mode) reads `state.json`, dispatches the current step, writes state, returns. It does **not** call `ScheduleWakeup` in cron mode — the next tick is cron-driven.
+3. When the orchestrator transitions to a terminal status (`completed`, `aborted`, `blocked`), `/mission-tick` itself deletes the routine via `/schedule`. The cron stops firing.
+4. `/mission-abort <id>` also deletes the routine. `/mission-resume <id>` for a cron-pace mission re-creates it if missing.
+
+Cron pace makes every tick a cache miss. The trade is: laptop can sleep, cost is higher per equivalent throughput. Tune `cron_interval_minutes` to balance — 5 minutes for active runs, 30 for trickle work.
+
+### Context overflow protection (both modes)
+
+When the orchestrator detects ~40 conversation turns or ~150KB of tool-result bytes consumed in its session, it sets `resume_requested: true`, writes a one-line log entry, and exits. The next wake (local `/loop` or cron `/schedule`) re-enters via `/mission-tick <id>` in a fresh session, which boots only from `state.json` + the current feature's contract slice. The conversation is disposable; state is durable.
 
 ## Retry loop (the autonomy delta)
 
@@ -146,7 +165,6 @@ All v1-specific keys live in `project.json` under new top-level fields. See `wor
 ## What v1 explicitly does **not** do (yet)
 
 - Multi-feature decomposition with dependency graphs — v1.1.
-- `--pace cron` via `/schedule` for laptop-asleep missions — v1.1.
 - `docs-auditor` subagent + `/docs-gate` (catches CHANGELOG/README/playbook drift against the actual diff; runs in orchestrator Procedure D before memory write) — v1.1.
 - Container isolation for destructive-command blast radius (`rm -rf` etc. still hit host today) — v1.1.
 - Mem0 semantic search wired through (broker has the seam; v1.0 is keyword-match local) — v1.2.

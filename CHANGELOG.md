@@ -2,6 +2,40 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: `--pace cron` for laptop-asleep overnight runs
+
+### The realization
+
+Local pace was always a half-step toward true autonomy. It lets you walk away from the terminal, but Claude Code has to stay open — meaning your laptop has to stay awake, on AC, with the network up. The "overnight" promise of v1 leaks at exactly the moment most founders actually leave: lid closes, machine sleeps, mission stalls until morning when you wake the laptop and the `/loop` resumes from wherever `ScheduleWakeup` last fired.
+
+The `/schedule` skill exists for exactly this case — cron-managed remote agents that run independently of your local session. The wiring was straightforward once we recognized that the orchestrator's "ephemeral conversation, durable `state.json`" pattern was already what cron mode requires: every cron fire is a fresh session that bootstraps from state.json, runs one tick, exits. The conversation has no reason to persist between ticks — the loop pattern in local mode already simulates this; cron just makes it real.
+
+### The fix, in one sentence
+
+**Add `--pace cron` to `/mission`: after contract approval, `/mission` invokes the `/schedule` skill via the Skill tool to create a routine named `mission-<id>` that fires `/mission-tick <id>` every `mission_caps.cron_interval_minutes` minutes; the routine auto-deletes when the mission reaches a terminal status.**
+
+### Specifics shipped this release
+
+- `workflow-v1/commands/mission.md` — step 5 adds the cron-pace branch: after the orchestrator returns successfully with `pace cron`, invoke the `/schedule` skill via the Skill tool to create the routine. If creation fails, surface the error and tell the user they can fall back to `/loop /mission-tick <id>` (local). The contract and state are still valid — only the autonomous tick path is lost.
+- `workflow-v1/commands/mission-tick.md` — step 5 adds the cron-pace cleanup: when the orchestrator's return shows `pace cron` AND status is terminal (`completed`, `aborted`, `blocked`), invoke `/schedule` to delete the routine. If deletion fails (already gone), log warning but don't fail — the next cron fire would see terminal status anyway and exit cleanly.
+- `workflow-v1/commands/mission-abort.md` — new step 8: read state.json, and if `state.pace == "cron"`, invoke `/schedule` to delete the routine. Abort is intentional; we always clean up.
+- `workflow-v1/commands/mission-resume.md` — if `state.pace == "cron"`, re-create the routine after the orchestrator resumes state (the routine may have been auto-deleted on a prior terminal transition, or manually removed).
+- `workflow-v1/agents/mission-orchestrator.md` — Procedure A step 8 now branches on `pace`: local-mode prints the `/loop /mission-tick` instructions; cron-mode prints a different message explaining that `/mission` will create the routine. Procedure B (tick) skips the `ScheduleWakeup` call in cron mode — the next tick is cron-driven, not session-driven. The return line now includes `pace <pace>` so the dispatching slash command knows which lifecycle to follow.
+- `workflow-v1/project.example.v1.json` — `mission_caps.cron_interval_minutes` added (default 10). Documented range 5-60; below 5 hits `/schedule` minimums.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — pacing section rewritten with both modes side by side: local for desk-machine overnight runs, cron for truly laptop-asleep runs. Removes `--pace cron` from the v1.1 deferred list.
+- `docs/missions.md` — adds a "Laptop-asleep overnight runs (`--pace cron`)" section with the trade-off framing.
+
+### What we deliberately didn't do
+
+- We did **not** dynamically tune `cron_interval_minutes` based on mission step. The orchestrator can't reach into the cron schedule to change its own interval — cron is a fixed cadence. If a mission is idle (waiting on a deploy preview), it ticks at the same rate as when it's actively dispatching. Local pace handles this with `default_wake_idle_secs`; cron does not. The right next iteration if this matters is a `cron_idle_interval_minutes` that the orchestrator can request `/schedule` to update — but that's complexity for an edge case. v1.0 keeps it simple.
+- We did **not** mix cron and local pacing within a mission. Once you pick at `/mission` time, the mission stays that pace until it terminates. You can `/mission-abort` and start fresh in the other mode, but mid-mission flips would require state.json migration logic for a small benefit.
+- We did **not** use `CronCreate` / `CronDelete` directly from the slash command. Going through the `/schedule` skill keeps the abstraction at the skill level, where the user already manages other cron jobs. If `/schedule` evolves (e.g., adds tags, history, manual run), missions inherit those improvements automatically.
+- We did **not** show cron run history in `/mission-status`. Out of scope for v1.1 — the orchestrator's `log.md` already captures every tick's verdict, which is the founder-readable view. `/schedule list` shows the routine state for debugging.
+
+### The lesson worth carrying
+
+Cron mode revealed how much architectural value sat in v1.0's "ephemeral conversation, durable state.json" decision. We made it for context-overflow resilience — to let `/mission-resume` bootstrap a fresh session — but the same property is what makes cron mode work without any state-machine refactor. The conversation was already disposable; cron just removed the requirement that consecutive ticks share a process. Whenever a framework's storage layer is honest about what's truly persistent vs. ephemeral, capabilities that look like new infrastructure often turn out to be a small wrapper. The work in this release was 90% documentation and 10% skill invocation — the substance had already been built.
+
 ## 2026-05-11 — v1 missions: GitHub integration (issue → mission → PR)
 
 ### The realization

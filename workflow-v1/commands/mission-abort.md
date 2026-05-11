@@ -46,9 +46,14 @@ You are aborting an in-flight mission.
      INVOKED_BY: /mission-abort
    ```
 
-7. Print the orchestrator's one-line confirmation. Suggest:
+7. Print the orchestrator's one-line confirmation.
+
+8. **Cron pace cleanup.** Read state.json. If `state.pace == "cron"`: invoke the `/schedule` skill via the Skill tool to delete the routine named `mission-<id>`. If deletion fails (already gone), log a warning but don't fail — the user invoked abort with clear intent. If state.pace is local, skip (nothing to clean up).
+
+9. Suggest:
    ```
-   Review code changes with:  git diff
+   Review code changes with:  cd <state.worktree.path> && git diff <state.worktree.base_ref>
+                              (or `git diff` from the main repo if worktree is disabled)
    Review mission with:       cat <mission_root>/<id>/log.md
    ```
 

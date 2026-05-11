@@ -31,15 +31,15 @@ You are resuming an in-flight mission in a fresh session. The orchestrator's pri
    - Reset `resume_requested: false` if set.
    - Update `last_heartbeat`.
    - Pick up from `current_step` and continue.
-   - Print instructions for the user to enter `/loop` dynamic mode for autonomous execution.
+   - Print instructions based on `state.pace`.
 
-6. Print the orchestrator's return verbatim. The user will see something like:
-   ```
-   Mission <id> resumed at step <step>. To continue autonomously, type:
-     /loop /mission-tick <id>
-   ```
+6. Print the orchestrator's return verbatim. Then:
 
-   `/mission-resume` itself runs synchronously (no `ScheduleWakeup`), the same way `/mission` does. Only `/loop /mission-tick` enables the autonomous tick cadence.
+   **If `state.pace == "local"`:** the user will see instructions to type `/loop /mission-tick <id>`. Nothing more for this command to do.
+
+   **If `state.pace == "cron"`:** invoke the `/schedule` skill via the Skill tool to **re-create** the routine named `mission-<id>` (the original may or may not still exist — `/schedule create` should be idempotent or the skill should handle "already exists" gracefully; if it's strict, list routines first and skip creation if the name already matches). The cron will fire `/mission-tick <id>` every `mission_caps.cron_interval_minutes` minutes from now.
+
+   `/mission-resume` itself runs synchronously (no `ScheduleWakeup`), the same way `/mission` does. Only `/loop /mission-tick` (local) or the cron schedule (cron) enables the autonomous tick cadence.
 
 ## Notes
 

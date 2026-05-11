@@ -13,12 +13,13 @@
     "memory_broker": "haiku"
   },
 
-  "_mission_caps_comment": "Hard caps and pacing knobs. Dispatch caps are observable and deterministic; cost is not (the orchestrator cannot introspect its session spend), so we cap dispatches as the cost proxy. Wake intervals: active 270s sits under the 5-min prompt-cache TTL so the cache stays warm; idle 1500s amortizes one cache miss over ~25 min of waiting.",
+  "_mission_caps_comment": "Hard caps and pacing knobs. Dispatch caps are observable and deterministic; cost is not (the orchestrator cannot introspect its session spend), so we cap dispatches as the cost proxy. Wake intervals (local pace): active 270s sits under the 5-min prompt-cache TTL so the cache stays warm; idle 1500s amortizes one cache miss over ~25 min of waiting. cron_interval_minutes (cron pace): minutes between /schedule-fired ticks. Default 10 — every tick is a cache miss (fresh session), so balance responsiveness vs. cost. Range 5-60; below 5 hits /schedule minimums.",
   "mission_caps": {
     "max_dispatches_per_feature": 3,
     "max_total_dispatches": 50,
     "default_wake_active_secs": 270,
-    "default_wake_idle_secs": 1500
+    "default_wake_idle_secs": 1500,
+    "cron_interval_minutes": 10
   },
 
   "_memory_comment": "Cross-mission memory. Local mode writes markdown under <local_root>/missions/ and indexes via <local_root>/index.json. Mem0 mode (opt-in) mirrors writes to https://api.mem0.ai with Bearer auth from the env var named in api_key_env. Mem0 is augmentation, not replacement — local always writes. The memory-broker is the ONLY agent that reads these settings.",
