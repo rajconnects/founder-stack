@@ -162,7 +162,8 @@ After v0.1 is installed, v1 ships as an additive layer — no v0.1 files are tou
 **What gets added:**
 
 - Five new slash commands: `/mission`, `/mission-tick`, `/mission-status`, `/mission-resume`, `/mission-abort`
-- Four new agents: `mission-orchestrator` (opus), `feature-worker` (sonnet), `scrutiny-validator` (sonnet), `memory-broker` (haiku)
+- New agents: `feature-worker` (sonnet), `scrutiny-validator` (sonnet), `user-flow-tester` (sonnet), `docs-auditor` (haiku), `memory-broker` (haiku)
+- Procedures under `.claude/procedures/v1/` (`mission-new.md`, `mission-tick.md`) — these are read and executed by the slash commands in the main agent thread. The orchestrator is **not** a sub-agent; Claude Code blocks nested sub-agent spawning and the tick loop dispatches workers and validators that themselves require Task tool access.
 - Templates under `.claude/templates/v1/`: `state.schema.json`, `mission-contract.template.md`, `mission-handoff.template.md`
 - `Engineering-Playbook-v1-deltas.md` and `project.example.v1.json`
 - `.gitignore` entries (idempotent) for `missions/`, `memory/`, and `.claude/settings.local.json` — keeps mission metadata out of PRs the worker opens from the mission branch

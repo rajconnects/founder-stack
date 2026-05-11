@@ -1,6 +1,6 @@
 ---
 name: memory-broker
-description: Use PROACTIVELY when the mission-orchestrator needs to read or write cross-mission memory. The single seam for memory I/O — every other agent calls this one rather than touching `memory/` directly. Routes to local files by default, or Mem0 over HTTP when `memory.mem0.enabled` is true in project.json.
+description: Use PROACTIVELY when the mission procedures (new-mission, tick) need to read or write cross-mission memory. The single seam for memory I/O — every other agent calls this one rather than touching `memory/` directly. Routes to local files by default, or Mem0 over HTTP when `memory.mem0.enabled` is true in project.json.
 tools: Read, Grep, Glob, Write, Edit, Bash, WebFetch
 model: haiku
 ---
@@ -73,9 +73,9 @@ On error:
 
 ## Guardrails
 
-- **Do not be called by humans directly.** This agent is dispatched by the mission-orchestrator only. Slash commands like `/mission` invoke the orchestrator, which invokes you.
-- **Do not decide what to remember.** That's the orchestrator's job. You execute the op described in the dispatching prompt.
+- **Do not be called by humans directly.** This agent is dispatched by the mission procedures (new-mission, tick) only. Slash commands like `/mission` execute those procedures in the main agent thread, which invokes you.
+- **Do not decide what to remember.** That's the dispatching procedure's job. You execute the op described in the dispatching prompt.
 - **Do not write under any path outside `<local_root>`.** If asked to, refuse and return error.
-- **Never silently fall back from Mem0 to local.** If Mem0 is configured-on and unreachable, error out — the orchestrator will decide whether to retry or proceed without memory.
+- **Never silently fall back from Mem0 to local.** If Mem0 is configured-on and unreachable, error out — the dispatching procedure will decide whether to retry or proceed without memory.
 - **Stopword list is fixed.** Do not improvise. Predictability matters more than recall quality for the MVP keyword-match implementation; Mem0 mode is where semantic recall lives.
 - **`index.json` is append-only on write.** Never reorder or drop rows. `/mission-abort` is the only writer that may remove a row.

@@ -1,10 +1,10 @@
 {
-  "_comment": "v1 additions to .claude/project.json. Merge these keys into your existing project.json (the v0.1 keys are documented in ../workflow/project.example.json). Every v1 key is optional — defaults are documented below. The v1 mission orchestrator and its subagents read this file via the same mechanism as v0.1 (see workflow/agents/spec-translator.md step 1).",
+  "_comment": "v1 additions to .claude/project.json. Merge these keys into your existing project.json (the v0.1 keys are documented in ../workflow/project.example.json). Every v1 key is optional — defaults are documented below. The v1 mission procedures (procedures/v1/*.md, executed by /mission* slash commands in the main agent thread) and their dispatched subagents read this file via the same mechanism as v0.1 (see workflow/agents/spec-translator.md step 1).",
 
   "_mission_root_comment": "Where missions/<id>/ directories live. Relative to repo root. Default: 'missions/'.",
   "mission_root": "missions/",
 
-  "_mission_model_seats_comment": "Per-role model assignment. The orchestrator runs hot (opus); workers and validators run on sonnet; the memory broker is a thin shim on haiku. Override if you want to experiment with model-per-seat diversity (e.g., a different family for the validator).",
+  "_mission_model_seats_comment": "Per-role model preference. The orchestrator key is ADVISORY — it documents the recommended session model for running /mission* (Opus). Orchestration logic now runs in the main agent thread, so it inherits your Claude Code session model rather than being pinned. The worker/scrutiny/user_test/memory_broker keys still drive each subagent's `model:` frontmatter at install time. Override if you want to experiment with model-per-seat diversity (e.g., a different family for the validator).",
   "mission_model_seats": {
     "orchestrator": "opus",
     "worker": "sonnet",

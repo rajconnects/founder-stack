@@ -63,12 +63,33 @@ for subdir in commands agents; do
   done
 done
 
-# Templates live under .claude/templates/v1/ — orchestrator references them
+# Clean up the retired mission-orchestrator agent symlink for users who
+# installed v1.0/v1.1 before the nested-subagent-spawning refactor. Claude
+# Code blocks sub-agents from spawning further sub-agents, so the orchestrator
+# was moved into slash-command-driven procedures (see .claude/procedures/v1/).
+# Leaving the symlink in place would surface a broken agent in agent listings.
+STALE_ORCH="$TARGET_DIR/.claude/agents/mission-orchestrator.md"
+if [ -L "$STALE_ORCH" ] || [ -e "$STALE_ORCH" ]; then
+  rm -f "$STALE_ORCH"
+  echo "  removed:       .claude/agents/mission-orchestrator.md (retired in this version)"
+fi
+
+# Templates live under .claude/templates/v1/ — procedures reference them
 # by absolute path resolved from FRAMEWORK_DIR via the symlink.
 mkdir -p "$TARGET_DIR/.claude/templates/v1"
 for file in "$FRAMEWORK_DIR/workflow-v1/templates"/*; do
   [ -e "$file" ] || continue
   link_file "$file" "$TARGET_DIR/.claude/templates/v1/$(basename "$file")"
+done
+
+# Procedures live under .claude/procedures/v1/ — slash commands (/mission,
+# /mission-tick, /mission-resume, /mission-abort) read these at runtime
+# and execute the steps in the main agent thread. They must NOT be under
+# .claude/agents/ — that directory is for callable sub-agents only.
+mkdir -p "$TARGET_DIR/.claude/procedures/v1"
+for file in "$FRAMEWORK_DIR/workflow-v1/procedures"/*; do
+  [ -e "$file" ] || continue
+  link_file "$file" "$TARGET_DIR/.claude/procedures/v1/$(basename "$file")"
 done
 
 # v1 playbook and example config sit alongside the v0.1 ones in .claude/.

@@ -1,6 +1,6 @@
 ---
 name: docs-auditor
-description: Use PROACTIVELY when the user invokes /docs-gate, or when mission-orchestrator dispatches you in Procedure D before writing memory. Catches CHANGELOG/README/playbook drift against the actual repo state — broken file references, dead slash-command refs, unused project.json keys, and CHANGELOG entries that don't match the git diff range. Returns a structured pass/fail with gaps.
+description: Use PROACTIVELY when the user invokes /docs-gate, or when the mission tick procedure dispatches you in its Completion step before writing memory. Catches CHANGELOG/README/playbook drift against the actual repo state — broken file references, dead slash-command refs, unused project.json keys, and CHANGELOG entries that don't match the git diff range. Returns a structured pass/fail with gaps.
 tools: Read, Grep, Glob, Bash
 model: haiku
 ---

@@ -1,11 +1,11 @@
 ---
-description: One iteration of the orchestrator loop. Invoked as `/loop /mission-tick <id>` by the user after `/mission` approval to start autonomous execution, and re-fired by /loop dynamic mode on each ScheduleWakeup.
+description: One iteration of the autonomous mission loop. Invoked as `/loop /mission-tick <id>` to start, then re-fired by /loop dynamic mode on each ScheduleWakeup (local pace), or fired by /schedule (cron pace).
 argument-hint: <mission-id>
 ---
 
-You are firing one tick of an in-flight mission's orchestrator loop.
+You are firing one tick of an in-flight mission's autonomous loop. **This command runs the tick procedure directly in the main agent thread** — the procedure dispatches `feature-worker`, `scrutiny-validator`, `design-auditor`, `schema-analyst`, `user-flow-tester`, `docs-auditor`, and `memory-broker` via the Task tool. Claude Code blocks sub-agents from spawning further sub-agents, so the tick procedure must run as the main thread, not a sub-agent.
 
-**Entry expectation:** this command should be invoked via `/loop /mission-tick <id>` — that puts the session into `/loop` dynamic mode, which is what makes the orchestrator's `ScheduleWakeup` calls actually fire. If you were invoked as a bare `/mission-tick <id>` (no `/loop` prefix), the orchestrator's wakeups will be no-ops and the mission will stall after one tick.
+**Entry expectation:** this command should be invoked via `/loop /mission-tick <id>` — that puts the session into `/loop` dynamic mode, which is what makes the tick procedure's `ScheduleWakeup` calls actually fire. If you were invoked as a bare `/mission-tick <id>` (no `/loop` prefix), wakeups will be no-ops and the mission will stall after one tick.
 
 **Arguments:** `$ARGUMENTS`
 
@@ -15,21 +15,17 @@ You are firing one tick of an in-flight mission's orchestrator loop.
 
 2. Read `.claude/project.json` → `mission_root`. Confirm `<mission_root>/<id>/state.json` exists. If not: print `ERROR: no mission state found at <path>. Aborting tick.` and stop.
 
-3. Launch the orchestrator:
+3. **Read `.claude/procedures/v1/mission-tick.md` and execute it in this main agent thread.** Pass:
+   - `MISSION_ID`: `<id>` from `$ARGUMENTS`
 
-   ```
-   subagent_type: mission-orchestrator
-   prompt: |
-     MODE: tick
-     MISSION_ID: <id>
-     INVOKED_BY: /loop /mission-tick (or /schedule if cron pace)
-   ```
+   The procedure handles cap checks, dispatches the next step (worker → scrutiny+design+schema in parallel → user-test → handoff), saves state, and either calls `ScheduleWakeup` (local pace) or returns silently (cron pace). On the last feature's handoff, it runs the Completion section (docs-audit, memory write, PR handoff).
 
-4. Print the orchestrator's return line verbatim. The line has shape `<id> | step <step> | <verdict-summary> | pace <pace> | status <status>`.
+4. After the procedure returns, capture its return line. Shape: `<id> | step <step> | <verdict-summary> | pace <pace> | status <status>`. Print it verbatim.
 
-5. **Cron pace cleanup.** If the orchestrator's return shows `pace cron` AND `status` is one of `completed`, `aborted`, or `blocked`: invoke the `/schedule` skill via the Skill tool to **delete** the routine named `mission-<id>`. The mission's cron schedule should not keep firing after a terminal state. If routine deletion fails (already gone, schedule skill unreachable), log a warning but don't fail the tick — the next cron fire will just see terminal status and exit cleanly without doing work.
+5. **Cron pace cleanup.** If the return shows `pace cron` AND `status` is one of `completed`, `aborted`, or `blocked`: invoke the `/schedule` skill via the Skill tool to **delete** the routine named `mission-<id>`. The mission's cron schedule should not keep firing after a terminal state. If routine deletion fails (already gone, schedule skill unreachable), log a warning but don't fail the tick — the next cron fire will just see terminal status and exit cleanly without doing work.
 
 ## Notes
 
-- This command exists so `/loop` (local pace) and `/schedule` (cron pace) have a stable target to fire. It does no work of its own — orchestrator dispatches the actual subagents.
-- If the orchestrator returned with `resume_requested: true`, the next wakeup re-enters via this same command, but starts a fresh session (the loop runtime / cron handles that).
+- This command exists so `/loop` (local pace) and `/schedule` (cron pace) have a stable target to fire. It does no work of its own — the procedure dispatches the actual subagents.
+- If the procedure returned with `resume_requested: true`, the next wakeup re-enters via this same command and starts a fresh session (the loop runtime / cron handles that).
+- **Model expectation:** Opus is recommended for the tick loop (planning, retry decisions, audit aggregation). Sonnet works but is weaker at multi-dispatch reasoning.

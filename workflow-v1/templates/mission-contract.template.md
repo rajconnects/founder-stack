@@ -3,10 +3,10 @@
 **Goal:** {{goal}}
 
 **Authored:** {{date}}
-**Author:** mission-orchestrator
+**Author:** /mission (mission-new procedure)
 **Status:** draft | approved | locked
 
-> The contract is written **before** any worker dispatch. Workers and validators read their feature's section as the spec of done. The orchestrator does not rewrite contract sections after lock — failed acceptance triggers a worker re-dispatch with the prior handoff, not a contract relaxation.
+> The contract is written **before** any worker dispatch. Workers and validators read their feature's section as the spec of done. The tick procedure does not rewrite contract sections after lock — failed acceptance triggers a worker re-dispatch with the prior handoff, not a contract relaxation.
 
 ## Mission scope
 

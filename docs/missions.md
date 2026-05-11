@@ -19,16 +19,18 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 | Goal is exploratory or you don't have crisp acceptance criteria yet | `/spec-intake` first, then optionally `/mission` |
 | Production deploy is in scope | v0.1 only. v1.0 explicitly excludes prod from the orchestrator's surface. |
 
-## The three roles
+## The roles
 
-| Role | Agent | What it does |
+| Role | Where it lives | What it does |
 |---|---|---|
-| Orchestrator | `mission-orchestrator` (opus) | Scopes the goal, writes the validation contract, dispatches workers and validators, decides retry/advance/block. Maintains `state.json` as the durable source of truth. |
-| Worker | `feature-worker` (sonnet) | Implements one feature against its contract, runs local checks, emits a structured handoff. One feature per dispatch, clean context each time. |
-| Scrutiny validator | `scrutiny-validator` (sonnet) | Adversarially re-checks the worker's claims with fresh context, dispatches v0.1 auditors as needed, emits a PASS/FAIL verdict. |
-| User-flow tester | `user-flow-tester` (sonnet) | Drives a real browser via Playwright MCP against your preview URL. Executes the contract's user-flow assertions, captures screenshots and console errors. Auto-skipped when `mission_user_test.preview_url_command` is null. |
-| Docs auditor | `docs-auditor` (haiku) | Catches docs drift — broken file refs, dead `/command` refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff. Dispatched automatically in Procedure D, or manually via `/docs-gate`. |
-| Memory broker | `memory-broker` (haiku) | Reads and writes cross-mission memory. Local files by default; Mem0 over HTTP if configured. |
+| Orchestrator | `procedures/v1/mission-new.md` + `procedures/v1/mission-tick.md`, executed in your main agent thread by the `/mission*` slash commands. Inherits your session model — **Opus recommended**. | Scopes the goal, writes the validation contract, dispatches workers and validators, decides retry/advance/block. Maintains `state.json` as the durable source of truth. Runs in the main thread because Claude Code blocks sub-agents from spawning further sub-agents. |
+| Worker | `feature-worker` agent (sonnet) | Implements one feature against its contract, runs local checks, emits a structured handoff. One feature per dispatch, clean context each time. |
+| Scrutiny validator | `scrutiny-validator` agent (sonnet) | Adversarially re-checks the worker's static-correctness claims with fresh context — tests, types, contract-coverage, honesty flags. Emits PASS/FAIL. Does **not** dispatch other auditors. |
+| Design auditor | `design-auditor` agent (haiku, v0.1) | Dispatched **in parallel with scrutiny** when the feature has a `Design contract` and the worker touched frontend files. Verifies tokens, component spec, Figma alignment. |
+| Schema analyst | `schema-analyst` agent (haiku, v0.1) | Dispatched **in parallel with scrutiny** when the feature has a `Schema contract` and the worker touched migration files. Verifies RLS, indexes, forward-compat. |
+| User-flow tester | `user-flow-tester` agent (sonnet) | Drives a real browser via Playwright MCP against your preview URL. Executes the contract's user-flow assertions, captures screenshots and console errors. Auto-skipped when `mission_user_test.preview_url_command` is null. |
+| Docs auditor | `docs-auditor` agent (haiku) | Catches docs drift — broken file refs, dead `/command` refs, unused `project.example.*.json` keys, advisory CHANGELOG-vs-diff. Dispatched automatically at mission completion, or manually via `/docs-gate`. |
+| Memory broker | `memory-broker` agent (haiku) | Reads and writes cross-mission memory. Local files by default; Mem0 over HTTP if configured. |
 
 ## The five commands
 
@@ -42,8 +44,8 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 
 ## What happens when you run `/mission`
 
-1. You type `/mission "build a counter component with persisted state, key must be 'counter:v1'"`. This is the **synchronous** entry — the orchestrator runs in your foreground until the contract is approved.
-2. The orchestrator reads `.claude/project.json`, generates a mission id, checks prior missions for relevant context via the memory-broker.
+1. You type `/mission "build a counter component with persisted state, key must be 'counter:v1'"`. This is the **synchronous** entry — the `mission-new` procedure runs in your foreground until the contract is approved.
+2. The procedure reads `.claude/project.json`, generates a mission id, checks prior missions for relevant context via the memory-broker.
 3. It asks 1–3 sharp scoping questions if anything is ambiguous, then writes `missions/<id>/contract.md` with explicit acceptance criteria, file scope, and test contract.
 4. It presents the contract for your approval. You can say `yes`, `edit`, or `abort`.
 5. On approval, it writes `missions/<id>/state.json` and prints:

@@ -2,6 +2,48 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: orchestrator moves to main thread (fixes silent no-op of nested sub-agent dispatches)
+
+### The realization
+
+A user reported that running `/mission` in their own project appeared to do nothing useful after contract approval — the autonomous loop never actually dispatched workers. Investigation surfaced a Claude Code restriction the v1 architecture had unknowingly walked into: **sub-agents cannot spawn other sub-agents**, regardless of what's listed in their `tools:` frontmatter. The official docs spell this out: *"Subagents cannot spawn other subagents, so `Agent(agent_type)` has no effect in subagent definitions."*
+
+The v1 design had two layers of nesting:
+- `/mission` (slash command) → `mission-orchestrator` (sub-agent, `tools: ..., Task`) → `feature-worker` / `scrutiny-validator` / `user-flow-tester` / `docs-auditor` / `memory-broker` (sub-sub-agents).
+- `mission-orchestrator` → `scrutiny-validator` (sub-sub-agent, `tools: ..., Task`) → `design-auditor` / `schema-analyst` (sub-sub-sub-agents).
+
+Every `Task` call past the first level was silently no-op'd. Claude Code did not error — it returned, the orchestrator marched on with hallucinated worker output, and the mission appeared to "complete" with no actual code written. The failure mode is the worst kind: silent, plausible-looking, only detectable by reading the missions directory after the fact.
+
+### The fix, in one sentence
+
+**Move all orchestration logic out of sub-agents and into the main agent thread (where Task tool calls actually work): split the orchestrator's procedures into `procedures/v1/mission-new.md` and `procedures/v1/mission-tick.md`, executed directly by the `/mission*` slash commands; strip `Task` from `scrutiny-validator` and let the tick procedure dispatch design-auditor and schema-analyst in parallel from the main thread.**
+
+### Specifics shipped this release
+
+- `workflow-v1/procedures/mission-new.md` — new procedure file. Contains Procedure A (new mission): config resolution, GitHub-issue fetch, mission id generation, worktree creation, prior-mission memory-broker dispatch, scoping conversation, contract authoring, contract approval, `state.json` initialization, pace-specific handoff. Same behavior as the old `mission-orchestrator.md` Procedure A; the surrounding agent-frontmatter framing is gone.
+- `workflow-v1/procedures/mission-tick.md` — new procedure file. Contains Procedure B (tick) + Procedure D (completion + PR handoff). The big architectural change is in the scrutiny step: instead of dispatching `scrutiny-validator` and letting it nest-dispatch `design-auditor`/`schema-analyst`, the tick procedure dispatches all three (when applicable) **in parallel via concurrent Task calls in a single message**, then aggregates the verdicts. This is faster (auditors run concurrently) and structurally correct (no nested spawning).
+- `workflow-v1/agents/scrutiny-validator.md` — **breaking refactor**. Removed `Task` from tools. Removed the design pass and schema pass (those are now standalone dispatches from the tick procedure). Kept the test pass, type pass, contract-coverage pass, and honesty flag — these are what require scrutiny's adversarial fresh-context check. Verdict template no longer has Design pass / Schema pass sections.
+- `workflow-v1/agents/mission-orchestrator.md` — **deleted**. The procedures replace it. Anyone who installed v1.0 or v1.1 has a now-broken symlink in `.claude/agents/mission-orchestrator.md`; `scripts/install-v1.sh` removes that symlink idempotently on next run.
+- `workflow-v1/commands/mission.md`, `mission-tick.md`, `mission-resume.md`, `mission-abort.md` — rewritten. The slash commands no longer launch `subagent_type: mission-orchestrator` via Task. Instead, they read the relevant procedure file via the Read tool and execute its steps directly in the main agent thread (where Task dispatches to leaf agents actually work). `/mission-resume` and `/mission-abort` are small enough (~6 procedure steps each) that the procedure body lives inline in the slash command; `/mission` and `/mission-tick` read their procedures from `.claude/procedures/v1/`.
+- `scripts/install-v1.sh` — added (a) a `.claude/procedures/v1/` symlink loop mirroring the `templates/` loop, (b) an idempotent cleanup that removes any pre-existing `.claude/agents/mission-orchestrator.md` symlink so prior installs don't surface a broken agent in agent listings.
+- `workflow-v1/templates/mission-contract.template.md` — `Author:` field updated from `mission-orchestrator` to `/mission (mission-new procedure)`.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — roles table redrawn: Orchestrator row now points at `procedures/v1/*.md` + main agent thread, with the note that Opus is recommended. New rows for `design-auditor` and `schema-analyst` (now explicit first-class scrutiny-step dispatches, not nested under scrutiny-validator).
+- `workflow-v1/project.example.v1.json` — `mission_model_seats.orchestrator` reframed as advisory (it documents the recommended session model for `/mission*` but no longer drives an agent's `model:` frontmatter — orchestration runs in your session). Comment updated.
+- `docs/missions.md` and `docs/install.md` — roles table updated; install description now lists `procedures/v1/` as a thing that gets symlinked. Notes that the orchestrator is **not** an agent; it's main-thread procedure code dispatched by the slash commands.
+- `README.md` — added the same "Opus recommended for /mission" note in the v1 section.
+
+### What we deliberately didn't do
+
+- We did **not** try to recover the orchestrator-as-subagent design by clever indirection (e.g., having scrutiny-validator return a "needs these dispatches" signal that the orchestrator forwards to). That still leaves the orchestrator nested under a slash command's main agent → sub-agent boundary, and the orchestrator's own dispatches stay no-op'd. The Claude Code restriction is hard; the only fix is to put orchestration in the main thread.
+- We did **not** preserve `mission-orchestrator.md` as a "deprecated reference doc" inside `.claude/agents/`. Files in `.claude/agents/` are agent definitions — leaving an inert file there confuses listings. The procedure docs live in `.claude/procedures/v1/`, a new sibling directory; agents and procedures are conceptually different and should not share a namespace.
+- We did **not** convert this to a hard breaking version bump. Existing mission directories on disk are still valid — `state.json` schema is unchanged, the contract template is unchanged, mission ids still resolve. The only thing that changed is the *executor* of the procedures, and the new executor is auto-installed by re-running `install-v1.sh`.
+
+### Tradeoffs and what to watch
+
+- **Model selection.** The old orchestrator was pinned to `model: opus`. Now it inherits your Claude Code session model. If you run `/mission` on Sonnet, the scoping + retry-decision passes are noticeably weaker. The README and `docs/missions.md` flag this; consider switching to Opus before starting a multi-feature mission.
+- **Context budget heuristic.** The old orchestrator counted "turns since session start" to trigger `resume_requested`. In the main thread, that now includes your pre-tick conversation. The tick procedure has been updated to count from `/mission-tick` invocation, not session start — but if you start a `/loop /mission-tick` from a session that's already heavy, the first tick may trip resume earlier than you'd expect. Use `/clear` before kicking off a mission for cleanest budget.
+- **No more nested sub-agent spawning anywhere in the framework.** The lesson generalizes: any new agent file with `Task` in its tools list, if intended to be dispatched as a sub-agent, will silently fail to spawn its declared sub-agents. The v0.1 commands (`/design-gate`, `/schema-gate`, etc.) are all single-level dispatches from main → leaf, so they're fine. New designs should keep the same shape: main agent dispatches leaves; never have a leaf try to dispatch further leaves.
+
 ## 2026-05-11 — v1 missions: docs-auditor catches drift between docs and the actual repo
 
 ### The realization
