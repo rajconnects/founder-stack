@@ -26,6 +26,7 @@ This is additive to the v0.1 workflow. `/spec-intake`, `/test-gate`, `/design-ga
 | Orchestrator | `mission-orchestrator` (opus) | Scopes the goal, writes the validation contract, dispatches workers and validators, decides retry/advance/block. Maintains `state.json` as the durable source of truth. |
 | Worker | `feature-worker` (sonnet) | Implements one feature against its contract, runs local checks, emits a structured handoff. One feature per dispatch, clean context each time. |
 | Scrutiny validator | `scrutiny-validator` (sonnet) | Adversarially re-checks the worker's claims with fresh context, dispatches v0.1 auditors as needed, emits a PASS/FAIL verdict. |
+| User-flow tester | `user-flow-tester` (sonnet) | Drives a real browser via Playwright MCP against your preview URL. Executes the contract's user-flow assertions, captures screenshots and console errors. Auto-skipped when `mission_user_test.preview_url_command` is null. |
 | Memory broker | `memory-broker` (haiku) | Reads and writes cross-mission memory. Local files by default; Mem0 over HTTP if configured. |
 
 ## The five commands
@@ -151,13 +152,40 @@ git branch -D mission/<id>
 
 The `missions/<id>/state.json`, `contract.md`, `log.md`, and `handoffs/` stay on disk after either path — they're audit trail, not source.
 
+## Enabling user-flow testing
+
+When `mission_user_test.preview_url_command` is set in `project.json`, the orchestrator dispatches `user-flow-tester` after scrutiny PASSes. The tester drives a real browser via Playwright MCP, executes the contract's user-flow verbs, and emits PASS/FAIL with screenshots and console capture. On FAIL, the orchestrator re-dispatches the worker — same retry semantics as scrutiny — with the user-test verdict in the retry prompt.
+
+Two minimal configurations:
+
+```jsonc
+// Dev server already running (you started it before the mission)
+"mission_user_test": {
+  "mcp": "playwright",
+  "preview_url_command": "echo http://localhost:5173"
+}
+```
+
+```jsonc
+// Have the mission start its own dev server (simple background-and-wait pattern)
+"mission_user_test": {
+  "mcp": "playwright",
+  "preview_url_command": "cd $CLAUDE_PROJECT_DIR/missions/$MISSION_ID/worktree && nohup npm run dev > /tmp/dev-$MISSION_ID.log 2>&1 & sleep 8 && echo http://localhost:5173"
+}
+```
+
+v1.0 does **not** auto-stop dev servers the command starts — you're responsible for cleanup. A `preview_server_stop_command` is on the roadmap if this becomes painful.
+
+When `preview_url_command` is null, the orchestrator writes `verdicts.<fid>.user_test = "skipped"` and proceeds straight from scrutiny to handoff. This is the right setting for backend-only features or when you want a faster verification loop before wiring browser tests in.
+
 ## What v1.0 doesn't do yet
 
 - Multi-feature decomposition with dependency graphs
-- User-flow testing via Playwright (currently auto-skipped if `mission_user_test.preview_url_command` is null)
 - `--pace cron` (laptop-asleep missions via `/schedule`)
 - `/mission --from-issue <github-url>`
 - `gh pr create` automation at mission completion
+- `docs-auditor` for catching CHANGELOG/README drift
+- Container isolation for destructive-command blast radius
 - Mem0 semantic search (broker has the seam; the search call is local-only in v1.0)
 
 Roadmap in `workflow-v1/Engineering-Playbook-v1-deltas.md`.

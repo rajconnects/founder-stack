@@ -106,6 +106,8 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
      HANDOFF_OUTPUT_PATH: <abs path to <mission_root>/<id>/handoffs/<fid>.md>
      DISPATCH_NUMBER: <retry_counts[<fid>:worker] + 1>
      PRIOR_HANDOFF: <inline contents of <fid>.md if this is a retry, else "none">
+     PRIOR_SCRUTINY_VERDICT: <inline contents of <fid>.scrutiny.md if scrutiny FAILed previously, else "none">
+     PRIOR_USER_TEST_VERDICT: <inline contents of <fid>.user-test.md if user-test FAILed previously, else "none">
      PROJECT_JSON_INLINE: <relevant fields: stack, test_commands, test_roots>
      MAX_DISPATCH_BUDGET_MIN: 30
    ```
@@ -147,9 +149,39 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 
    ### current_step: user-test
 
-   **v1.0 MVP:** if `mission_user_test.preview_url_command` is null or `user-flow-tester` agent file is absent, **skip** this step: write `verdicts.<fid>.user_test = "skipped"`, set `current_step: handoff`, save state, proceed.
+   If `mission_user_test.preview_url_command` is null OR the contract feature section has no `User flows` block: **skip** this step. Write `verdicts.<fid>.user_test = "skipped"`, set `current_step: handoff`, save state, proceed.
 
-   **v1.1+:** dispatch `user-flow-tester` (see its agent doc for the prompt shape). On `PASS`, set `current_step: handoff`. On `FAIL`, mirror the scrutiny retry logic.
+   Otherwise:
+
+   1. **Capture the preview URL.** Run `bash -c '<mission_user_test.preview_url_command>'`. Capture stdout (trim whitespace), capture stderr, capture exit code.
+      - If exit != 0: append the stderr to `error_log` and `log.md`, set mission `status: blocked` with reason `"preview_url_command exited <code>"`. Save state. Return.
+      - If stdout is empty: same — `status: blocked` with reason `"preview_url_command returned empty stdout"`.
+      - Otherwise: stdout is the `PREVIEW_URL`.
+
+   2. **Dispatch user-flow-tester:**
+
+      ```
+      subagent_type: user-flow-tester
+      prompt: |
+        MISSION_ID: <id>
+        FEATURE_ID: <fid>
+        WORKTREE_PATH: <state.worktree.path, or "none">
+        CONTRACT_PATH: <abs path to contract.md>#feature-<fid>
+        VERDICT_OUTPUT_PATH: <abs path to <fid>.user-test.md>
+        PREVIEW_URL: <captured URL>
+        ARTIFACTS_DIR: <abs path to <mission_root>/<id>/artifacts/>
+        PROJECT_JSON_INLINE: <relevant fields>
+        MAX_DISPATCH_BUDGET_MIN: 15
+      ```
+
+   3. **Process the verdict.** Read `<fid>.user-test.md`. Parse the `Verdict:` line.
+      - Increment `retry_counts[<fid>:user-test]` and `dispatches_total`.
+      - Append to `log.md`.
+      - If `Verdict: PASS`: write `verdicts.<fid>.user_test = "PASS"`. Set `current_step: handoff`.
+      - If `Verdict: skipped`: write `verdicts.<fid>.user_test = "skipped"`. Set `current_step: handoff`. (This happens when the contract has no UF entries — the tester confirms there's nothing to test, which is different from PASS.)
+      - If `Verdict: FAIL`:
+        - If `retry_counts[<fid>:worker] + 1 < caps.max_dispatches_per_feature`: set `current_step: worker`. The next tick re-dispatches the worker with the user-test verdict as the retry context. The user-test FAIL tells the worker which user flow failed and why — different signal from scrutiny FAIL (which is about static checks).
+        - Else: cap hit. Set mission `status: blocked`.
 
    ### current_step: handoff
 

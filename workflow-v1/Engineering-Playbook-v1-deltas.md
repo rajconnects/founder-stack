@@ -23,9 +23,17 @@ The v0.1 layers (INTAKE → SHIP → REFLECT) still exist and still work standal
 | Orchestrator | `mission-orchestrator` | opus | Scopes goal, writes contract, dispatches workers/validators, decides retry/advance/block, maintains `state.json`, self-paces via ScheduleWakeup |
 | Worker | `feature-worker` | sonnet | Implements one feature against its contract slice, runs local checks, emits structured handoff |
 | Scrutiny validator | `scrutiny-validator` | sonnet | Adversarial fresh-context check of worker's claims; dispatches v0.1 auditors (`design-auditor`, `schema-analyst`) as needed; emits PASS/FAIL |
+| User-flow tester | `user-flow-tester` | sonnet | Drives `mcp__playwright__*` against a reachable preview URL; executes the contract's `user_flows[]` verbs in a real browser; captures screenshots, console errors, failed network requests; emits PASS/FAIL. Auto-skipped when `mission_user_test.preview_url_command` is null. |
 | Memory broker | `memory-broker` | haiku | Single seam for cross-mission memory; local files by default, Mem0 over HTTP if configured |
 
-v1.1 adds `user-flow-tester` (sonnet, Playwright-driven).
+## Two validators, two failure classes
+
+Scrutiny and user-flow tester are deliberately separate roles — they catch different failure classes and the retry context differs.
+
+- **Scrutiny FAIL** means: code doesn't compile, tests fail, types fail, design tokens are violated, schema migration is unsafe. The retry prompt to the worker includes the scrutiny verdict so it knows which static check to fix.
+- **User-flow test FAIL** means: code compiles and tests pass, but the feature *doesn't actually work in a browser*. The retry prompt includes the user-test verdict — different signal (which user flow failed at which verb), so the worker knows to fix the runtime behavior, not the static state.
+
+Both verdicts can re-dispatch the worker, up to `caps.max_dispatches_per_feature`. The user-test verdict is what makes `PASS` mean "the feature works end-to-end," not just "it compiles."
 
 ## The validation contract
 
@@ -109,10 +117,11 @@ All v1-specific keys live in `project.json` under new top-level fields. See `wor
 ## What v1 explicitly does **not** do (yet)
 
 - Multi-feature decomposition with dependency graphs — v1.1.
-- User-flow tester via Playwright — v1.1.
 - `--pace cron` via `/schedule` for laptop-asleep missions — v1.1.
 - `/mission --from-issue <github-url>` and `gh pr create` on completion — v1.1.
-- Mem0 semantic search wired through — v1.2.
+- `docs-auditor` subagent + `/docs-gate` (catches CHANGELOG/README/playbook drift against the actual diff; runs in orchestrator Procedure D before memory write) — v1.1.
+- Container isolation for destructive-command blast radius (`rm -rf` etc. still hit host today) — v1.1.
+- Mem0 semantic search wired through (broker has the seam; v1.0 is keyword-match local) — v1.2.
 - Framework self-evolution (mission outcomes propose edits to `workflow-v1/`) — v1.2.
 
 ## Backwards compatibility

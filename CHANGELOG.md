@@ -2,6 +2,39 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: user-flow-tester closes the "code compiles" → "feature works" gap
+
+### The realization
+
+After yesterday's MVP, a passing mission meant: code compiles, lint passes, tests pass, design-auditor and schema-analyst found no gaps. That's the **scrutiny** validator's domain — static and local. What it doesn't catch: features that compile and pass unit tests but **don't actually work** when a user opens the browser. The Factory talk that framed v1's architecture was explicit about this: scrutiny + user-testing are deliberately separate roles, because they catch different failure classes.
+
+In the MVP, the `current_step: user-test` branch was a stub that wrote `verdicts.<fid>.user_test = "skipped"` and proceeded. So a mission could `status: completed` with the feature visibly broken in a browser — exactly the kind of false PASS the framework is supposed to prevent.
+
+### The fix, in one sentence
+
+**Ship `user-flow-tester` (sonnet) that drives a real browser via Playwright MCP, executes the contract's `User flows` block, and emits PASS/FAIL with screenshots + console capture — and wire the orchestrator to dispatch it instead of skipping.**
+
+### Specifics shipped this release
+
+- `workflow-v1/agents/user-flow-tester.md` — new agent file. Tool surface scoped to `mcp__playwright__*` (browser_navigate, browser_snapshot, browser_click, browser_type, browser_press_key, browser_take_screenshot, browser_console_messages, browser_network_requests, browser_evaluate, browser_close, etc.) plus Read/Grep/Bash. Procedure: parse contract's `User flows` block; for each UF-N, snapshot the page, parse the natural-language verbs (Navigate to X, Click Y, Reload, Assert Z), execute against the preview URL, capture a screenshot to `<mission_root>/<id>/artifacts/<fid>-uf<N>.png`, capture console errors and failed network requests, judge PASS or FAIL with a specific reason citing the failing verb. Overall verdict is PASS iff every UF PASSes AND zero console errors AND zero failed network requests.
+- `workflow-v1/agents/mission-orchestrator.md` — replaced the v1.0 `user-test` skip stub with a real dispatch. The orchestrator now: (a) reads `mission_user_test.preview_url_command`, (b) `bash -c`'s it to capture the URL, (c) dispatches `user-flow-tester` with `PREVIEW_URL` and `ARTIFACTS_DIR`, (d) processes the verdict with the same retry semantics as scrutiny — FAIL re-dispatches the worker with the user-test verdict in `PRIOR_USER_TEST_VERDICT`. A FAIL from `preview_url_command` itself (exit != 0 or empty stdout) transitions the mission to `status: blocked` with a clear error, rather than silently advancing.
+- `workflow-v1/agents/feature-worker.md` — step 1 now requires `PRIOR_USER_TEST_VERDICT` alongside `PRIOR_SCRUTINY_VERDICT`. Step 3 explicitly branches on which one is populated: a scrutiny FAIL retry focuses on static fixes (compile, tests, lint, design tokens, contract coverage); a user-test FAIL retry focuses on runtime fixes (hydration, async, state-persistence, event handlers). Worker is instructed **not** to over-correct — fix the failed class only. Without this split, runtime-failure retries would inherit the static-failure mental model and the worker would rewrite working code.
+- `workflow-v1/project.example.v1.json` — `mission_user_test.preview_url_command` comment refreshed with two concrete recipes: (a) dev server already running (`echo http://localhost:5173`), (b) start-on-demand (`cd $CLAUDE_PROJECT_DIR/missions/$MISSION_ID/worktree && nohup npm run dev … & sleep 8 && echo …`). Documents the v1.0 caveat that mission-started dev servers are not auto-stopped (roadmap: `preview_server_stop_command` in v1.2). Adds `fail_on_console_errors` and `fail_on_failed_requests` flags (both default `false`) — console errors and 4xx/5xx requests are recorded in every verdict but **advisory by default**, since real apps boot with third-party noise (React DevTools, deprecated-API warnings, HMR chatter) that would otherwise cause spurious retries exhausting caps without surfacing real bugs. Flip to `true` when the app's console is genuinely expected to be clean.
+- `workflow-v1/templates/mission-contract.template.md` — refreshed the `User flows` section: removes the stale "skip in MVP" parenthetical (the tester ships in this commit) and adds the verb vocabulary the tester parses (*Navigate to*, *Click <label>*, *Type X into <field>*, *Reload*, *Wait for X*, *Assert <claim>*) so contract authors know exactly which English maps to executable actions.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — adds a `user-flow-tester` row to the roles table and a "Two validators, two failure classes" section explaining the scrutiny-vs-user-test failure-class split and why the retry context differs between them. Removes user-flow-tester from the v1.1 deferred list (it's now shipped).
+- `docs/missions.md` — adds a roles-table entry for `user-flow-tester`, plus an "Enabling user-flow testing" section with both recipes inline. Updates the "What v1.0 doesn't do yet" list to remove the user-flow line and add the v1.1 items that are still ahead (docs-auditor, container isolation, cron pacing, GitHub integration, Mem0 semantic search).
+
+### What we deliberately didn't do
+
+- We did **not** ship dev-server lifecycle management. The orchestrator runs `preview_url_command` once at the start of `user-test`; it does not start, stop, or restart servers. If your command starts a background server, you own cleaning it up. Documented loudly in the project.example.v1.json comment, with a roadmap line for `preview_server_stop_command` when the friction warrants it.
+- We did **not** parse the user-flow grammar formally. The verbs are natural-language and a sonnet-tier agent reads them as English. This deliberately keeps contracts human-authored — no DSL to learn — at the cost of occasional verb ambiguity that the tester surfaces as a FAIL with `"ambiguous element: N matches for '<label>'"`. The right next iteration if this becomes a recurring failure is a contract authoring helper, not a flow-grammar parser.
+- We did **not** wire visual regression. Screenshots are captured for human review and audit, but the tester doesn't compare them to a baseline. `mcp__glance__visual_baseline` and `visual_compare` exist and would slot in cleanly later; deferred until contract patterns stabilize.
+- We did **not** make the user-flow tester re-author the contract. If a flow is impossible to verify (no preview URL, missing component, ambiguous element reference), the tester FAILs and the orchestrator decides whether to retry the worker or block. The contract is locked at user approval; only the human can revise it.
+
+### The lesson worth carrying
+
+The Factory architecture's split — scrutiny vs. user-testing as separate roles — is the load-bearing one. v1.0 collapsed them ("skip user-test") and got away with it for static features. The moment a feature has runtime behavior the unit tests don't cover (localStorage, routing, hydration, animation timing, anything async), scrutiny PASS is no longer the same as "works." Shipping user-flow-tester now, rather than waiting for a user to hit the false-PASS class of bug, is the cheaper trade. The cost was one agent file plus one orchestrator branch change.
+
 ## 2026-05-11 — v1 missions: per-mission git worktree for filesystem isolation
 
 ### The realization

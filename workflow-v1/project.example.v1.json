@@ -31,10 +31,12 @@
     }
   },
 
-  "_mission_user_test_comment": "v1.1 feature. Configures the user-flow-tester subagent. preview_url_command is a shell command that prints a URL to stdout (e.g., 'vercel inspect --url' or 'echo http://localhost:5173'). When null, the orchestrator skips user-flow testing and writes verdicts.<fid>.user_test = 'skipped'. mcp names which MCP server drives the browser; v1.1 supports 'playwright' (mcp__playwright__*). 'glance' is planned for v1.2.",
+  "_mission_user_test_comment": "Configures the user-flow-tester subagent. preview_url_command is a shell command that prints a URL to stdout — the orchestrator runs it before dispatching user-flow-tester and passes the captured URL. The command is responsible for the URL being reachable: either the dev server is already running ('echo http://localhost:5173' is fine) or the command starts it ('cd $CLAUDE_PROJECT_DIR/missions/<id>/worktree && nohup npm run dev > /tmp/dev.log 2>&1 & sleep 8; echo http://localhost:5173'). When null, the orchestrator skips user-flow testing and writes verdicts.<fid>.user_test = 'skipped'. mcp names which MCP server drives the browser; v1.1 supports 'playwright' (mcp__playwright__*). 'glance' is planned for v1.2. fail_on_console_errors and fail_on_failed_requests default to false — console errors and 4xx/5xx requests are recorded in the verdict but don't gate the PASS/FAIL (real apps have boot-time third-party noise that would cause spurious retries). Flip to true only when your app's console is genuinely expected to be clean. Note: v1.0 does not auto-stop dev servers the command starts — that's the user's responsibility (in v1.2 we may add preview_server_stop_command).",
   "mission_user_test": {
     "mcp": "playwright",
-    "preview_url_command": null
+    "preview_url_command": null,
+    "fail_on_console_errors": false,
+    "fail_on_failed_requests": false
   },
 
   "_mission_runtime_comment": "Where the worker and scrutiny execute. worktree.enabled (default true) makes each mission run inside its own git worktree at <mission_root>/<mission_id>/worktree on branch mission/<mission_id> — source-file edits stay isolated from the main checkout and other missions. base_ref names the ref the mission branches from (default 'HEAD' = main repo's current commit; can be 'main', a tag, or a SHA). Set worktree.enabled to false for host mode (worker edits in the main checkout, no isolation). Container isolation is planned for v1.1.",

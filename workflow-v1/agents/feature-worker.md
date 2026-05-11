@@ -17,7 +17,8 @@ You are a feature worker. You implement exactly one feature against its contract
    - `HANDOFF_OUTPUT_PATH` (absolute path)
    - `DISPATCH_NUMBER` (1 for first attempt, 2+ for retries)
    - `PRIOR_HANDOFF` (verbatim contents of previous handoff if retry, else `"none"`)
-   - `PRIOR_SCRUTINY_VERDICT` (verbatim contents if retry, else `"none"`)
+   - `PRIOR_SCRUTINY_VERDICT` (verbatim contents if scrutiny FAILed on the previous dispatch, else `"none"`)
+   - `PRIOR_USER_TEST_VERDICT` (verbatim contents if user-flow tester FAILed on the previous dispatch, else `"none"`)
    - `PROJECT_JSON_INLINE` (relevant fields — at minimum `stack.frontend_root`, `stack.backend_root`, `test_commands`)
    - `MAX_DISPATCH_BUDGET_MIN` (advisory)
 
@@ -34,7 +35,12 @@ You are a feature worker. You implement exactly one feature against its contract
    - Design / schema / user-flow contracts as applicable
    - Out of scope (for this feature)
 
-3. **If `DISPATCH_NUMBER > 1`: read the prior handoff and scrutiny verdict.** The prior dispatch failed scrutiny. Your job on this retry is to **fix what scrutiny flagged**, not to redo the whole feature. Read the `Gaps` or `FAIL` section of the scrutiny verdict and the `contract_coverage` block of the prior handoff. Focus your work on the unmet ACs.
+3. **If `DISPATCH_NUMBER > 1`: read the prior handoff and whichever verdict FAILed.** Exactly one of `PRIOR_SCRUTINY_VERDICT` and `PRIOR_USER_TEST_VERDICT` will contain a real verdict; the other will be `"none"`. **Read only the one that's populated** — that names the failure class you must fix on this retry:
+   - **`PRIOR_SCRUTINY_VERDICT` populated** → static failure. Code didn't compile, tests failed, lint/types/design tokens flagged, or contract-coverage gaps in `contract_coverage`. Read the `Gaps` and `FAIL` sections of the scrutiny verdict and the `contract_coverage` block of the prior handoff. Fix the static issue.
+   - **`PRIOR_USER_TEST_VERDICT` populated** → runtime failure. Code compiled and tests passed, but a user flow failed in the browser. Read the `## User flows` section to see which UF failed at which verb, and the `## Console messages` / `## Network requests` sections for noise that may explain the cause. Fix the runtime behavior — usually a hydration, async, state-persistence, or event-handler bug.
+   - **Both `"none"`** → this isn't a retry (`DISPATCH_NUMBER == 1`). Implement against the contract fresh.
+
+   Do not over-correct: if only user-test FAILed, scrutiny PASSed and you should not rewrite the static parts that already work. Likewise the reverse.
 
 4. **Write the failing tests first** (if `Test contract` lists tests that don't yet exist or are passing trivially). Tests come before production code. Run the tests, confirm they fail with a contract-coverage-meaningful failure, then proceed.
 

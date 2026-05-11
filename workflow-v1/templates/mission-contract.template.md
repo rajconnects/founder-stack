@@ -51,9 +51,11 @@
 - RLS expectations: <one line>
 - Index expectations: <one line>
 
-**User flows** (consumed by user-flow-tester; skip in MVP if user-flow-tester not yet enabled):
+**User flows** (consumed by `user-flow-tester` when `mission_user_test.preview_url_command` is set in project.json; auto-skipped otherwise):
 
 - UF-1: <natural-language scenario, e.g. "Navigate to /, click increment 3 times, reload page, assert count text shows '3'">
+
+Author flows in plain English using verbs the tester parses: *Navigate to*, *Click <label>*, *Type X into <field>*, *Reload*, *Wait for X*, *Assert <claim>*. Be specific enough that there's exactly one element matching each `<label>` — ambiguity causes FAIL.
 
 **Out of scope for this feature:** <bullet list>
 
