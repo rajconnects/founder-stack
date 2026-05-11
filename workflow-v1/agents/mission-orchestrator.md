@@ -29,6 +29,17 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
    - `<4-char-hash>`: `bash -c 'openssl rand -hex 2'`.
    - Create `<mission_root>/<mission_id>/` and `handoffs/` and `artifacts/` subdirs.
 
+2b. **Create the per-mission worktree** (filesystem isolation for worker edits). Read `mission_runtime.worktree.enabled` from project.json (default `true`). If `true`:
+   - Compute `WORKTREE_PATH = <abs-main-repo>/<mission_root>/<mission_id>/worktree`.
+   - Compute `BRANCH = mission/<mission_id>`.
+   - Compute `BASE_REF = <--base arg if provided, else current HEAD of main repo>`. Capture the SHA with `bash -c 'git rev-parse <ref>'` so the recorded base_ref is stable.
+   - Run `bash -c 'git worktree add -b <BRANCH> <WORKTREE_PATH> <BASE_REF>'` from the main repo root.
+   - If the command fails (branch exists, dirty tree, etc.): surface the stderr verbatim, delete the partially-created `<mission_root>/<mission_id>/` directory, and stop. **Do not** write `state.json` for a mission whose worktree creation failed.
+   - **Symlink `.claude/` into the worktree** so slash commands resolve from either CWD: `bash -c 'ln -s <abs-main-repo>/.claude <WORKTREE_PATH>/.claude'`. If the worktree already has a `.claude` (rare — base ref had one tracked), skip the symlink and set `claude_dir_symlink: false` later.
+   - Record in coordination.json (reuses v0.1's stale-cleanup): append a row with `id: mission-<mission_id>`, `phase: mission`, `status: active`, `severity: major` (missions own a branch and run for hours — always major; sibling sessions pause), `worktree: <WORKTREE_PATH>`, `branch: <BRANCH>`, `started: <iso>`, `heartbeat: <iso>`. This is best-effort — if `coordination.json` is missing or malformed, log to `log.md` and continue.
+
+   If `mission_runtime.worktree.enabled` is `false` (host mode): skip 2b entirely. `worktree` stays `null` in `state.json`; worker and scrutiny operate in the main repo CWD.
+
 3. **Read prior-mission context.** Dispatch `memory-broker` with `OP: search`, `KIND: mission_outcome`, `PAYLOAD: { query: "<goal>", limit: 3 }`. Capture the returned items. If non-empty, paste each item's `goal` + `snippet` into the contract authoring prompt and into `log.md` under "Prior-mission references".
 
 4. **Scope the goal with the user.** This is the only mandatory human checkpoint in a new mission. Ask 1–3 sharp questions to disambiguate scope, success criteria, and any hard constraints (e.g., specific library, specific file path, specific behavior). Keep it tight — 3 questions max. If the goal is already crisp, skip and proceed.
@@ -47,6 +58,7 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
    - `current_feature_idx: 0`, `current_step: worker`.
    - `caps`: from project.json or defaults.
    - `dispatches_total: 0`, `error_log: []`, `last_heartbeat: now`, `resume_requested: false`.
+   - `worktree`: from step 2b — `{ path, branch, base_ref, claude_dir_symlink }` if worktree mode is on, else omit the field entirely (null/absent).
 
 8. **Hand off to /loop.** Print to the user, verbatim:
 
@@ -82,15 +94,16 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 
    ### current_step: worker
 
-   Dispatch the worker via Task tool:
+   Dispatch the worker via Task tool. **All paths in the dispatch prompt must be absolute** so the worker can resolve them after `cd $WORKTREE_PATH`:
 
    ```
    subagent_type: feature-worker
    prompt: |
      MISSION_ID: <id>
      FEATURE_ID: <fid>
-     CONTRACT_PATH: <mission_root>/<id>/contract.md#feature-<fid>
-     HANDOFF_OUTPUT_PATH: <mission_root>/<id>/handoffs/<fid>.md
+     WORKTREE_PATH: <state.worktree.path, or "none" if worktree disabled>
+     CONTRACT_PATH: <abs path to contract.md>#feature-<fid>
+     HANDOFF_OUTPUT_PATH: <abs path to <mission_root>/<id>/handoffs/<fid>.md>
      DISPATCH_NUMBER: <retry_counts[<fid>:worker] + 1>
      PRIOR_HANDOFF: <inline contents of <fid>.md if this is a retry, else "none">
      PROJECT_JSON_INLINE: <relevant fields: stack, test_commands, test_roots>
@@ -109,16 +122,17 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 
    ### current_step: scrutiny
 
-   Dispatch the scrutiny validator:
+   Dispatch the scrutiny validator. Again, all paths absolute:
 
    ```
    subagent_type: scrutiny-validator
    prompt: |
      MISSION_ID: <id>
      FEATURE_ID: <fid>
-     CONTRACT_PATH: <mission_root>/<id>/contract.md#feature-<fid>
-     WORKER_HANDOFF_PATH: <mission_root>/<id>/handoffs/<fid>.md
-     VERDICT_OUTPUT_PATH: <mission_root>/<id>/handoffs/<fid>.scrutiny.md
+     WORKTREE_PATH: <state.worktree.path, or "none" if worktree disabled>
+     CONTRACT_PATH: <abs path to contract.md>#feature-<fid>
+     WORKER_HANDOFF_PATH: <abs path to <fid>.md>
+     VERDICT_OUTPUT_PATH: <abs path to <fid>.scrutiny.md>
      PROJECT_JSON_INLINE: <fields the scrutiny validator's doc lists>
    ```
 
@@ -176,8 +190,15 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 
 1. Read `state.json`. Set `status: aborted`. Append `error_log` entry with timestamp + reason (from dispatching prompt).
 2. Append to `log.md`: `<timestamp> | mission aborted by user`.
-3. Do not delete files. Do not call memory-broker. The mission directory is preserved for audit.
-4. Do not `ScheduleWakeup`. Return.
+3. **Close the coordination.json row** if it exists: set `status: completed`, `completed: <iso>`. **Do not** use `completed_unclean` — that status triggers v0.1's `coord-cleanup.sh` to force-remove the worktree, which would defeat the audit-trail guarantee below. The mission-level "aborted" signal lives in `state.json.status`, not in the coordination row.
+4. Do not delete files. Do not call memory-broker. The mission directory and the worktree are preserved for audit.
+5. **Worktree cleanup hint.** If `state.worktree` is set, print:
+   ```
+   Worktree preserved at <state.worktree.path> on branch <state.worktree.branch>.
+   To inspect: cd <state.worktree.path> && git status
+   To discard: git worktree remove --force <state.worktree.path> && git branch -D <state.worktree.branch>
+   ```
+6. Do not `ScheduleWakeup`. Return.
 
 ## Procedure D — mission completion
 
@@ -200,8 +221,22 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
    ```
 
 4. Append final `log.md` entry.
-5. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
-6. Do **not** push, deploy, or `gh pr create` (v1.0). Suggest `gh pr create` with a pre-filled body assembled from `state.json` so the user can run it themselves.
+5. **Close the coordination.json row** for this mission: set `status: completed`, `completed: <iso>`.
+6. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
+7. **Worktree handoff hint.** If `state.worktree` is set, print a pre-filled `gh pr create` invocation assembled from `state.json`:
+   ```
+   Worktree at <state.worktree.path> on branch <state.worktree.branch>.
+   Inspect: cd <state.worktree.path> && git diff <state.worktree.base_ref>
+   Open PR:
+     cd <state.worktree.path>
+     git push -u origin <state.worktree.branch>
+     gh pr create --title "<goal-as-title>" --body "<auto-body from contract + verdicts>"
+   After merge:
+     git worktree remove <state.worktree.path>
+     git branch -D <state.worktree.branch>
+   ```
+   v1.0 does not run these automatically — they're suggestions for the human to review and execute.
+8. Do **not** push, deploy, or `gh pr create` automatically. v1.1 adds the `--auto-pr` flag.
 
 ## Guardrails
 

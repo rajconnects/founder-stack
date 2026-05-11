@@ -2,6 +2,41 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: per-mission git worktree for filesystem isolation
+
+### The realization
+
+We shipped the v1 mission MVP earlier today with the worker editing source files in the main checkout. That works for one mission at a time on a human-supervised flow — but the whole pitch of v1 is overnight unsupervised runs. The first time the worker misreads a contract and writes to the wrong path, the main checkout is contaminated. Worse: parallel missions on the same repo would step on each other immediately, and any attempt at a multi-mission flow becomes a coordination nightmare from day one.
+
+v0.1 solved an adjacent version of this for parallel human sessions: `/start-build` claims a git worktree, `coordination.json` tracks it, and `coord-cleanup.sh` sweeps stale rows. The pattern was right there — autonomous missions just needed to adopt it before the first overnight run, not after.
+
+### The fix, in one sentence
+
+**Each mission runs inside its own `git worktree` at `missions/<id>/worktree/` on branch `mission/<id>`; the orchestrator stays in the main repo and dispatches worker/scrutiny with an explicit `WORKTREE_PATH` they `cd` into before any Bash.**
+
+### Specifics shipped this release
+
+- `workflow-v1/templates/state.schema.json` — new `worktree` object with `path`, `branch`, `base_ref`, `claude_dir_symlink`. Absent or null in host mode.
+- `workflow-v1/agents/mission-orchestrator.md` — Procedure A step 2b creates the worktree with `git worktree add -b mission/<id> <path> <base_ref>`, symlinks `.claude/` into it (so slash commands resolve from either CWD), and registers a row in v0.1's `coordination.json` to reuse the existing stale-cleanup script. The coordination row uses `severity: major` (missions own a branch and run for hours — sibling sessions pause). Dispatches in Procedure B now pass `WORKTREE_PATH` and use absolute paths everywhere so the worker/scrutiny can resolve them after `cd`. Procedures C (abort) and D (complete) close the coordination row with `status: completed` (NOT `completed_unclean`, which would trigger force-removal of the worktree) and surface explicit `git worktree remove` / `gh pr create` hints — they do not auto-execute either.
+- `workflow-v1/agents/feature-worker.md` — required `WORKTREE_PATH` field in the dispatch prompt. New step 1b: every Bash command must be `cd "$WORKTREE_PATH" && ...`, and Edit/Write/Read tool calls target absolute paths inside the worktree. First-dispatch `npm install` (or pnpm/yarn/bun equivalent based on lockfile) when `node_modules/` is absent. New guardrail forbids reads or edits outside the worktree except for the explicit `HANDOFF_OUTPUT_PATH` and `CONTRACT_PATH` the dispatcher provided.
+- `workflow-v1/agents/scrutiny-validator.md` — same `WORKTREE_PATH` requirement, same `cd` discipline. Crucially: when scrutiny dispatches v0.1 `design-auditor` or `schema-analyst` via Task tool, file paths in `changed_files` are now **absolute paths inside the worktree**, so the v0.1 auditors (which use Read tool with whatever path you hand them) resolve correctly regardless of where the subagent runs.
+- `workflow-v1/commands/mission-status.md` — renders the worktree path, branch, and base ref in the status block.
+- `workflow-v1/project.example.v1.json` — new `mission_runtime.worktree.{enabled, base_ref}` config. Default `enabled: true` and `base_ref: "HEAD"`. Disable for host mode if you want the worker to edit the main checkout (not recommended for unattended runs).
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — new "Isolation" section describing the mechanism and the `.claude/` symlink trick.
+- `docs/missions.md` — the verification block now includes `git -C missions/<id>/worktree status` and the merge/discard recipes so users see the audit trail vs. source distinction.
+- `scripts/install-v1.sh` — idempotently appends `missions/`, `memory/`, and `.claude/settings.local.json` to the target repo's `.gitignore`. Without this, every mission's `gh pr create` from the worktree branch would pull in the mission's own state.json/log.md/handoffs alongside the source diff. The append is line-exact (`grep -qxF` then append), so re-running install adds nothing.
+
+### What we deliberately didn't do
+
+- We did **not** auto-merge the mission branch. v1.0 prints a pre-filled `gh pr create` invocation; the human owns the merge decision. Auto-merge is a v1.1 flag (`--auto-pr`).
+- We did **not** auto-remove worktrees on `/mission-abort` or completion. The audit trail is sacred — if the worker did something interesting, you want to inspect the worktree, not have it vaporize. Cleanup is a documented shell command.
+- We did **not** ship destructive-command sandboxing. Filesystem isolation only. A worker that runs `rm -rf ~/Documents` inside a worktree's Bash session still hits the host filesystem — the worktree gives you blast radius on *source files*, not on shell commands. Container isolation in v1.1 closes that gap; flagged in the playbook as the next escalation.
+- We did **not** invent a new coordination layer. v0.1's `coordination.json` and `coord-cleanup.sh` already do exactly what missions need — the row schema accommodates a `phase: mission` value cleanly with `severity: major`, and stale-cleanup runs every existing user already has installed.
+
+### The lesson worth carrying
+
+The right primitive was already in the framework. The unlock was recognizing that v0.1's worktree pattern — designed for parallel human-driven phases — generalized to autonomous missions with zero new infrastructure. The temptation when shipping v1 was to build a new isolation layer to match the new abstraction; what actually shipped was a four-line addition to Procedure A and an explicit path field in two dispatch prompts. When a framework has a small, well-shaped primitive set, the right move is almost always to reach for one of those before inventing.
+
 ## 2026-05-11 — v1 preview: autonomous missions (orchestrator + worker + scrutiny)
 
 ### The realization

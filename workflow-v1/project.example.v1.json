@@ -35,5 +35,13 @@
   "mission_user_test": {
     "mcp": "playwright",
     "preview_url_command": null
+  },
+
+  "_mission_runtime_comment": "Where the worker and scrutiny execute. worktree.enabled (default true) makes each mission run inside its own git worktree at <mission_root>/<mission_id>/worktree on branch mission/<mission_id> — source-file edits stay isolated from the main checkout and other missions. base_ref names the ref the mission branches from (default 'HEAD' = main repo's current commit; can be 'main', a tag, or a SHA). Set worktree.enabled to false for host mode (worker edits in the main checkout, no isolation). Container isolation is planned for v1.1.",
+  "mission_runtime": {
+    "worktree": {
+      "enabled": true,
+      "base_ref": "HEAD"
+    }
   }
 }

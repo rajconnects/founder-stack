@@ -119,9 +119,37 @@ claude                                     # opens Claude Code
 /loop /mission-tick <id>                   # id is printed by /mission on approval
 ```
 
-Expected: the orchestrator asks a clarifying question or two, writes a contract, asks for approval, then runs autonomously. Within 10–20 minutes you should see `missions/<id>/state.json` with `status: completed` and a Counter component in `apps/web/src/components/`.
+Expected: the orchestrator asks a clarifying question or two, writes a contract, asks for approval, then runs autonomously. Within 10–20 minutes you should see `missions/<id>/state.json` with `status: completed` and a Counter component **inside the per-mission worktree** at `missions/<id>/worktree/apps/web/src/components/Counter.tsx`.
 
 If the worker initially picks a wrong key (e.g., `"counter"` instead of `"counter:v1"`), scrutiny will FAIL on AC-3, and the orchestrator will re-dispatch the worker with the failed handoff. This is the autonomy delta — and the headline thing v1 does that v0.1 doesn't.
+
+Confirm isolation worked:
+
+```bash
+git -C missions/<id>/worktree status     # shows Counter.tsx added on branch mission/<id>
+git status                                # main checkout is clean
+git branch --list "mission/*"             # shows mission/<id>
+```
+
+When you're happy, merge:
+
+```bash
+cd missions/<id>/worktree
+git push -u origin mission/<id>
+gh pr create                              # use the body the orchestrator suggested
+# after merge:
+git worktree remove missions/<id>/worktree
+git branch -D mission/<id>
+```
+
+Or, to throw the mission away without merging:
+
+```bash
+git worktree remove --force missions/<id>/worktree
+git branch -D mission/<id>
+```
+
+The `missions/<id>/state.json`, `contract.md`, `log.md`, and `handoffs/` stay on disk after either path — they're audit trail, not source.
 
 ## What v1.0 doesn't do yet
 

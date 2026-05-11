@@ -27,6 +27,8 @@ You are rendering a status summary for an in-flight or completed mission.
    Status:  <status>           (pace: <pace>)
    Step:    feature <fid> | <current_step>
    Caps:    <retry_counts[<fid>:worker]>/<caps.max_dispatches_per_feature> worker retries, <dispatches_total>/<caps.max_total_dispatches> total dispatches
+   Worktree: <state.worktree.path> (branch <state.worktree.branch>, base <state.worktree.base_ref>)
+              — or "none (host mode)" if state.worktree is null/absent
 
    Features:
      <fid> <name>  status=<status>  scrutiny=<verdict>  user_test=<verdict>

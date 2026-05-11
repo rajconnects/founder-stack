@@ -46,7 +46,23 @@ missions/<mission-id>/                    ← YYYY-MM-DD-<slug>-<4-char-hash>
     <feature-id>.scrutiny.md              ← scrutiny verdict
     <feature-id>.user-test.md             ← v1.1
   artifacts/                              ← traces, screenshots, deploy URLs
+  worktree/                               ← isolated git worktree on branch mission/<id>
+    .claude → ../../../.claude            ← symlink to main repo's .claude
+    <project source files…>               ← worker edits land here
 ```
+
+## Isolation (worktree mode)
+
+Each mission's worker edits happen in a per-mission `git worktree` rooted at `<mission_root>/<mission_id>/worktree/` on branch `mission/<mission_id>`. The main checkout stays clean; other missions stay independent. This is filesystem isolation only — destructive Bash commands still run on the host (the v1.1 container path closes that gap).
+
+Mechanism:
+
+- **Orchestrator** runs in the main repo. It owns `state.json`, `contract.md`, `log.md`, and `handoffs/*` — all under `<mission_root>/<mission_id>/`, not in the worktree.
+- **Worker** and **scrutiny-validator** receive `WORKTREE_PATH` in their dispatch prompts and prefix every Bash command with `cd "$WORKTREE_PATH"`. Edit/Write/Read tool calls target absolute paths inside the worktree. The handoff write goes to the absolute `HANDOFF_OUTPUT_PATH` in the main repo's mission directory — handoffs are metadata, not source.
+- **`.claude/` is symlinked** into the worktree at creation time, so slash commands resolve from either CWD.
+- **coordination.json** gets a row per mission (reusing v0.1's stale-cleanup script). On `/mission-abort` or mission completion, the row is closed; the worktree itself is preserved for human inspection.
+
+Disable with `mission_runtime.worktree.enabled: false` for host mode (worker edits in the main checkout).
 
 ## Pacing for overnight runs
 

@@ -80,6 +80,28 @@ link_file "$FRAMEWORK_DIR/workflow-v1/project.example.v1.json" \
 # Hooks: v1 introduces no new hooks in MVP. v1.1 may add mission-heartbeat.sh.
 # Hook wiring stays exactly as v0.1's install.sh left it.
 
+# Per-mission worktrees + memory directories pollute git status if not ignored.
+# When the worker opens a PR from missions/<id>/worktree, the mission's own
+# state.json / log.md / handoffs would otherwise get included in the PR diff.
+# Idempotently append the standard ignore lines to .gitignore.
+echo ""
+echo "Wiring .gitignore (idempotent) ..."
+GITIGNORE="$TARGET_DIR/.gitignore"
+touch "$GITIGNORE"
+gi_added=0
+for line in "missions/" "memory/" ".claude/settings.local.json"; do
+  if ! grep -qxF "$line" "$GITIGNORE"; then
+    printf '%s\n' "$line" >> "$GITIGNORE"
+    echo "  added:     $line"
+    gi_added=$((gi_added + 1))
+  else
+    echo "  present:   $line"
+  fi
+done
+if [ "$gi_added" -gt 0 ]; then
+  echo "  ($gi_added lines added to .gitignore)"
+fi
+
 echo ""
 echo "Done. Linked: $linked. Skipped: $skipped."
 echo ""
