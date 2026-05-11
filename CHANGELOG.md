@@ -2,6 +2,38 @@
 
 All notable changes to Founder Stack are recorded here. The framework is small enough that the *why* matters as much as the *what* — entries are written for the founder reading them six months later, not the bot diffing them next week.
 
+## 2026-05-11 — v1 missions: GitHub integration (issue → mission → PR)
+
+### The realization
+
+Boris and Jarred's advanced Claude Code workflow video framed the natural unit of work as `issue → repro → fix → tests → PR`. v1.0 missions can do all the middle steps autonomously, but the endpoints — pulling context from an issue, and opening a PR from the result — were the human's job. That means the autonomy guarantee leaks at exactly the points where teams already have shared conventions: issue tracking and code review. A founder who wants the orchestrator to "work the issue queue overnight" can't ask it to start from `#42`, and at the end of a successful run, the founder still has to context-switch back into shell mode to push the branch and craft the PR body.
+
+The mechanics are small (a `gh issue view` here, a `gh pr create` there), but the framing matters: missions should be a complete loop, not a middle slice that demands manual bookends.
+
+### The fix, in one sentence
+
+**Add `/mission --from-issue <url>` to seed the contract from a GitHub issue's title+body, and `--auto-pr` (per-mission flag, or `github.auto_pr_on_completion` in `project.json` for project-wide default) to make the orchestrator push the mission branch and run `gh pr create` automatically on completion — never merging, only opening.**
+
+### Specifics shipped this release
+
+- `workflow-v1/commands/mission.md` — accepts `--from-issue <url>`, `--auto-pr`. Argument parsing now distinguishes flags from positional goal text; the dispatching prompt to the orchestrator carries `ISSUE_URL` and `AUTO_PR` fields explicitly.
+- `workflow-v1/agents/mission-orchestrator.md` — Procedure A step 1b: when `ISSUE_URL != "none"`, calls `gh issue view <url> --json title,body,state,labels`, validates the URL pattern, surfaces gh failures verbatim (missing auth, issue not found), warns and confirms on closed issues, and uses `title + body` as the goal seed for contract authoring. The contract is still authored from scratch and approved by the user — the issue is context, not contract. Procedure D step 7: when `state.github.auto_pr == true`, pushes the mission branch (`git push -u origin <branch>` from inside the worktree), composes a PR body from the contract scope + per-feature AC checkmarks + scrutiny/user-test PASS summary + retry counts + `Closes <issue-url>` if applicable, runs `gh pr create`, captures the URL into `state.github.pr_url`. On push or PR-create failure, falls back to the default-path manual command print — the run isn't a total loss.
+- `workflow-v1/templates/state.schema.json` — `github` object gains `auto_pr` boolean (default false). `issue_url` and `pr_url` already existed; they're now actually populated.
+- `workflow-v1/project.example.v1.json` — new top-level `github.auto_pr_on_completion` (default `false`) for projects that want auto-PR as the default for every mission. Per-mission `--auto-pr` flag overrides.
+- `workflow-v1/Engineering-Playbook-v1-deltas.md` — new "GitHub integration" section between the roles table and pacing. Removes the two corresponding lines from the v1.1 roadmap.
+- `docs/missions.md` — adds a "GitHub: issue → PR in one command" section showing the combined `--from-issue ... --auto-pr` invocation.
+
+### What we deliberately didn't do
+
+- We did **not** make the orchestrator merge PRs. Even with `--auto-pr`, only `gh pr create` runs; merge is always human. The whole point of v1's "founder operates at architecture and verification" framing is that someone competent must look at the diff before it lands. Auto-merge would defeat that with no upside — the time saved is trivial relative to the trust cost.
+- We did **not** install or auth `gh` for the user. If the CLI is missing or unauthenticated, the orchestrator surfaces the error and stops the affected step (issue fetch fails the mission setup; PR create falls back to manual). Installation is a one-time setup the user owns.
+- We did **not** parse the issue body as a contract. The orchestrator authors the contract from the issue context the same way it does from a typed goal — the human reviews and approves it. An issue body is a hint, not a spec, and treating it as a spec would skip the approval ritual that's the load-bearing checkpoint.
+- We did **not** add `--from-pr` for review missions. A natural follow-on, but a different mission shape (worker reads a diff, not writes code) — deferring to v1.2 alongside `framework_self_evolution`.
+
+### The lesson worth carrying
+
+The endpoints of an autonomous workflow are where the framework either earns or loses adoption. The middle (worker → scrutiny → user-flow tester) is what's algorithmically interesting; the bookends (where work comes from, where it lands) are where the framework either fits into a team's existing rhythm or doesn't. Issue-to-PR is the universal rhythm for any team using GitHub — making missions speak that rhythm natively cost two `bash -c 'gh …'` calls and an assembled markdown body, and it's the cheapest interface affordance v1 will ever ship.
+
 ## 2026-05-11 — v1 missions: user-flow-tester closes the "code compiles" → "feature works" gap
 
 ### The realization

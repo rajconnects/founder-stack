@@ -45,5 +45,10 @@
       "enabled": true,
       "base_ref": "HEAD"
     }
+  },
+
+  "_github_comment": "GitHub integration for missions. auto_pr_on_completion (default false) makes the orchestrator push the mission branch and run `gh pr create` automatically at mission completion — the orchestrator never merges, even with this flag (merge is always human). Per-mission override available via /mission --auto-pr flag. Requires the `gh` CLI to be installed and authenticated; the orchestrator does NOT install it for you. /mission --from-issue <url> always works regardless of this flag; it only affects the completion-time PR creation.",
+  "github": {
+    "auto_pr_on_completion": false
   }
 }

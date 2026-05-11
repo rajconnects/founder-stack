@@ -22,7 +22,15 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
 
 ## Procedure A — new mission
 
-1. **Resolve project config.** Read `.claude/project.json`. Extract `mission_root` (default `missions/`), `mission_model_seats`, `mission_caps`, `memory.*`, `mission_user_test.*`, `test_commands`, `stack`. If any of these are missing, use the documented defaults from `workflow-v1/project.example.v1.json`. Do **not** fail just because a field is missing — log the default in `log.md`.
+1. **Resolve project config.** Read `.claude/project.json`. Extract `mission_root` (default `missions/`), `mission_model_seats`, `mission_caps`, `memory.*`, `mission_user_test.*`, `test_commands`, `stack`, `github.auto_pr_on_completion` (default `false`). If any of these are missing, use the documented defaults from `workflow-v1/project.example.v1.json`. Do **not** fail just because a field is missing — log the default in `log.md`.
+
+1b. **Fetch the issue if invoked via `--from-issue`.** If the dispatching prompt has `ISSUE_URL != "none"`:
+   - Validate the URL matches `https://github.com/<owner>/<repo>/issues/<number>`. If not, return `ERROR: --from-issue requires a GitHub issue URL`.
+   - Run `bash -c 'gh issue view <ISSUE_URL> --json title,body,state,labels'` to fetch the issue.
+   - If the command fails (gh not installed, no auth, issue not found): return the stderr verbatim and stop.
+   - If `state == "closed"`: warn the user and ask whether to proceed. If yes, continue; if no, stop.
+   - Compose the goal string for downstream steps: `"<title>\n\n<body>"`. The orchestrator authors the contract from this in step 5 just like a typed goal — issue context becomes the seed, not the contract itself.
+   - Stash the URL for `state.json.github.issue_url` (written at step 7).
 
 2. **Generate mission id.** `YYYY-MM-DD-<slug>-<4-char-hash>`:
    - `<slug>`: lowercase, dash-separated, max 5 words drawn from the goal.
@@ -59,6 +67,7 @@ If `mode` is missing or unrecognized, return `ERROR: mission-orchestrator requir
    - `caps`: from project.json or defaults.
    - `dispatches_total: 0`, `error_log: []`, `last_heartbeat: now`, `resume_requested: false`.
    - `worktree`: from step 2b — `{ path, branch, base_ref, claude_dir_symlink }` if worktree mode is on, else omit the field entirely (null/absent).
+   - `github`: `{ issue_url: <ISSUE_URL from step 1b, or null>, pr_url: null, auto_pr: <AUTO_PR from dispatching prompt, OR github.auto_pr_on_completion from project.json, default false> }`. `pr_url` gets populated in Procedure D when the PR is created.
 
 8. **Hand off to /loop.** Print to the user, verbatim:
 
@@ -255,20 +264,30 @@ This is the autonomous body. It runs only inside `/loop` dynamic mode (entered v
 4. Append final `log.md` entry.
 5. **Close the coordination.json row** for this mission: set `status: completed`, `completed: <iso>`.
 6. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
-7. **Worktree handoff hint.** If `state.worktree` is set, print a pre-filled `gh pr create` invocation assembled from `state.json`:
+7. **PR handoff.** If `state.worktree` is set, compose a PR body from the mission artifacts:
+   - **Title:** the first line of `state.goal` (first 70 chars; fallback to the contract's `## Mission scope` line). If `state.github.issue_url` is set, append ` (closes #<issue-number>)`.
+   - **Body:** assembled markdown from the contract's scope section, feature acceptance criteria checkmarks (✓ for each met AC across `verdicts`), scrutiny + user-test PASS summary, retry counts, and a `Generated autonomously by Founder Stack v1 mission <id>` footer. If `state.github.issue_url` is set, prepend `Closes <url>`.
+
+   **If `state.github.auto_pr == true`:**
+   1. Run `bash -c 'cd <state.worktree.path> && git push -u origin <state.worktree.branch>'`. If push fails, surface stderr and skip to the manual hint path.
+   2. Run `bash -c 'cd <state.worktree.path> && gh pr create --title "<title>" --body "<body>"'`. Capture stdout (the PR URL).
+   3. Write `state.github.pr_url = <captured URL>` and save state.
+   4. Print: `PR opened: <url>`. Append to `log.md`.
+
+   **If `state.github.auto_pr == false` (default):** print the suggested commands for the user to review and run:
    ```
    Worktree at <state.worktree.path> on branch <state.worktree.branch>.
    Inspect: cd <state.worktree.path> && git diff <state.worktree.base_ref>
    Open PR:
      cd <state.worktree.path>
      git push -u origin <state.worktree.branch>
-     gh pr create --title "<goal-as-title>" --body "<auto-body from contract + verdicts>"
+     gh pr create --title "<title>" --body "<body — multi-line, copy-pasteable>"
    After merge:
      git worktree remove <state.worktree.path>
      git branch -D <state.worktree.branch>
    ```
-   v1.0 does not run these automatically — they're suggestions for the human to review and execute.
-8. Do **not** push, deploy, or `gh pr create` automatically. v1.1 adds the `--auto-pr` flag.
+   Do **not** execute these for the user when auto_pr is false.
+8. **Do not deploy.** Even with auto_pr, the orchestrator only opens the PR — merge and deploy decisions remain human.
 
 ## Guardrails
 

@@ -72,6 +72,35 @@ Mechanism:
 
 Disable with `mission_runtime.worktree.enabled: false` for host mode (worker edits in the main checkout).
 
+## GitHub integration
+
+Missions can start from a GitHub issue and end at a pull request — Boris/Jarred's "issue → PR" pattern applied to autonomous runs.
+
+**Start from an issue:**
+
+```
+/mission --from-issue https://github.com/<org>/<repo>/issues/42
+```
+
+The orchestrator calls `gh issue view <url> --json title,body,state,labels`, uses the title+body as the goal seed for contract authoring (so you still review and approve the contract before any code is written — the issue is context, not contract), and stashes the URL in `state.json.github.issue_url`. Closed issues prompt a confirmation before proceeding.
+
+**End at a pull request:**
+
+```
+/mission "<goal>" --auto-pr
+```
+
+Or set `github.auto_pr_on_completion: true` in `project.json` to make this the default for every mission. At mission completion (Procedure D), the orchestrator:
+
+1. Pushes the mission branch (`git push -u origin mission/<id>` from inside the worktree).
+2. Composes a PR body from the contract scope, feature acceptance criteria with PASS checkmarks, scrutiny + user-test summary, retry counts, and a `Closes <issue-url>` line if `state.github.issue_url` is set.
+3. Runs `gh pr create --title "<derived>" --body "<assembled>"`.
+4. Writes `state.github.pr_url` and prints the URL.
+
+The orchestrator **never merges**, even with `--auto-pr`. Merge and deploy decisions stay human. If push or `gh pr create` fails, the orchestrator falls back to printing the suggested commands (the default `--auto-pr false` path) so the run isn't a total loss.
+
+Requires `gh` CLI installed and authenticated. The orchestrator does not install or auth it for you.
+
 ## Pacing for overnight runs
 
 The orchestrator self-paces with `ScheduleWakeup`, which only fires inside `/loop` dynamic mode. The entry sequence is therefore two steps:
@@ -118,7 +147,6 @@ All v1-specific keys live in `project.json` under new top-level fields. See `wor
 
 - Multi-feature decomposition with dependency graphs — v1.1.
 - `--pace cron` via `/schedule` for laptop-asleep missions — v1.1.
-- `/mission --from-issue <github-url>` and `gh pr create` on completion — v1.1.
 - `docs-auditor` subagent + `/docs-gate` (catches CHANGELOG/README/playbook drift against the actual diff; runs in orchestrator Procedure D before memory write) — v1.1.
 - Container isolation for destructive-command blast radius (`rm -rf` etc. still hit host today) — v1.1.
 - Mem0 semantic search wired through (broker has the seam; v1.0 is keyword-match local) — v1.2.

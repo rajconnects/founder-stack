@@ -112,10 +112,21 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "issue_url": { "type": ["string", "null"] },
-        "pr_url": { "type": ["string", "null"] }
+        "issue_url": {
+          "type": ["string", "null"],
+          "description": "Populated when /mission --from-issue <url> was used. The orchestrator seeds contract authoring from the issue's title+body."
+        },
+        "pr_url": {
+          "type": ["string", "null"],
+          "description": "Populated in Procedure D when --auto-pr ran gh pr create successfully. Null when auto_pr is false or when the run failed (in which case the orchestrator prints the manual command)."
+        },
+        "auto_pr": {
+          "type": "boolean",
+          "description": "True when --auto-pr was set on /mission, or github.auto_pr_on_completion is true in project.json. Orchestrator runs `git push` + `gh pr create` at mission completion when true.",
+          "default": false
+        }
       },
-      "default": { "issue_url": null, "pr_url": null }
+      "default": { "issue_url": null, "pr_url": null, "auto_pr": false }
     },
     "worktree": {
       "type": "object",

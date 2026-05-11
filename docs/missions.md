@@ -178,12 +178,20 @@ v1.0 does **not** auto-stop dev servers the command starts — you're responsibl
 
 When `preview_url_command` is null, the orchestrator writes `verdicts.<fid>.user_test = "skipped"` and proceeds straight from scrutiny to handoff. This is the right setting for backend-only features or when you want a faster verification loop before wiring browser tests in.
 
+## GitHub: issue → PR in one command
+
+`/mission --from-issue <url>` seeds the contract from a GitHub issue's title and body. You still review and approve the contract before any code is written — the issue is context, not contract.
+
+`/mission "<goal>" --auto-pr` makes the orchestrator push the mission branch and `gh pr create` at completion (with an assembled body including PASS checkmarks and a `Closes <issue-url>` line if you also started from an issue). Set `github.auto_pr_on_completion: true` in `project.json` to make this the default.
+
+Combined: `/mission --from-issue https://github.com/<org>/<repo>/issues/42 --auto-pr` is a fully autonomous issue→PR run. The orchestrator never merges — that's always human.
+
+Requires `gh` CLI installed and authenticated.
+
 ## What v1.0 doesn't do yet
 
 - Multi-feature decomposition with dependency graphs
 - `--pace cron` (laptop-asleep missions via `/schedule`)
-- `/mission --from-issue <github-url>`
-- `gh pr create` automation at mission completion
 - `docs-auditor` for catching CHANGELOG/README drift
 - Container isolation for destructive-command blast radius
 - Mem0 semantic search (broker has the seam; the search call is local-only in v1.0)

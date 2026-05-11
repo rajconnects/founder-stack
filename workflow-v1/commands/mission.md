@@ -1,6 +1,6 @@
 ---
 description: Start a new autonomous mission. Orchestrator scopes the goal, writes a validation contract for your approval, then dispatches workers and validators on a /loop tick until the mission completes or blocks. Designed for overnight runs.
-argument-hint: <goal> [--pace local|cron]
+argument-hint: <goal> | --from-issue <url> [--pace local|cron] [--auto-pr]
 ---
 
 You are kicking off a new Founder Stack v1 autonomous mission.
@@ -9,29 +9,37 @@ You are kicking off a new Founder Stack v1 autonomous mission.
 
 ## Steps
 
-1. If `$ARGUMENTS` is empty or lacks a goal: print:
+1. **Parse arguments.** Recognized:
+   - `--from-issue <url>` — fetch a GitHub issue's title+body and use it as the goal seed (orchestrator authors the contract from it). The URL must be a GitHub issue URL — the orchestrator calls `gh issue view`.
+   - `--pace local|cron` — local (default; ScheduleWakeup inside /loop, requires Claude Code stay open) or cron (v1.1; routes ticks through `/schedule` so missions survive laptop sleep).
+   - `--auto-pr` — when the mission completes, the orchestrator runs `gh pr create` automatically with an assembled body. Default off; the orchestrator prints the suggested command for the user to run.
+   - Remaining positional text is the goal string. Strip the flags first.
+
+   If neither a goal string nor `--from-issue` is provided, print:
    ```
-   /mission requires a goal. Example: /mission "build a counter component with persisted state"
-   Optional: --pace local (default) or --pace cron (v1.1, /schedule-driven).
+   /mission requires a goal. Examples:
+     /mission "build a counter component with persisted state"
+     /mission --from-issue https://github.com/<org>/<repo>/issues/42
+   Optional: --pace local (default) | --pace cron, --auto-pr
    ```
    Stop.
 
-2. Parse `--pace` flag if present. Strip it from the goal string. Default: `local`.
+2. Read `.claude/project.json`. Confirm `mission_root` is set (default `missions/`). If the project hasn't been configured for v1 yet, print one line directing the user to copy `.claude/project.example.v1.json` keys into their `project.json`, then proceed with defaults.
 
-3. Read `.claude/project.json`. Confirm `mission_root` is set (default `missions/`). If the project hasn't been configured for v1 yet, print one line directing the user to copy `.claude/project.example.v1.json` keys into their `project.json`, then proceed with defaults.
-
-4. Launch the `mission-orchestrator` subagent via Task tool:
+3. Launch the `mission-orchestrator` subagent via Task tool:
 
    ```
    subagent_type: mission-orchestrator
    prompt: |
      MODE: new
-     GOAL: <the parsed goal>
+     GOAL: <the parsed goal, or "from-issue" if --from-issue was used>
+     ISSUE_URL: <url if --from-issue, else "none">
      PACE: <local|cron>
+     AUTO_PR: <true|false>
      INVOKED_BY: /mission
    ```
 
-5. When the orchestrator returns, print its summary verbatim. The summary will include the mission id and instructions for the user to type `/loop /mission-tick <id>` to enter autonomous loop mode. Do not synthesize on top of it.
+4. When the orchestrator returns, print its summary verbatim. The summary will include the mission id and instructions for the user to type `/loop /mission-tick <id>` to enter autonomous loop mode. Do not synthesize on top of it.
 
 ## Notes
 
