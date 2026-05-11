@@ -55,9 +55,21 @@ TEST_CMD=$(ask "Test command" "npm test")
 LINT_CMD=$(ask "Lint command" "npm run lint")
 
 echo ""
-echo "Writing .claude/project.json ..."
 
 PROJECT_JSON_PATH="$TARGET_DIR/.claude/project.json"
+WRITE_PROJECT_JSON=1
+
+if [ -e "$PROJECT_JSON_PATH" ]; then
+  read -rp "  .claude/project.json already exists. Overwrite? (y/N): " confirm
+  case "$confirm" in
+    [Yy]*) echo "  Overwriting existing project.json." ;;
+    *)     echo "  Keeping existing project.json. (Edit it directly to update.)"
+           WRITE_PROJECT_JSON=0 ;;
+  esac
+fi
+
+if [ "$WRITE_PROJECT_JSON" = "1" ]; then
+echo "Writing .claude/project.json ..."
 
 # Build project.json with the schema agents/hooks read. The python heredoc
 # below keeps null/empty handling and quoting honest. See
@@ -163,6 +175,7 @@ with open(out_path, "w") as f:
     json.dump(config, f, indent=2)
     f.write("\n")
 PYEOF
+fi  # WRITE_PROJECT_JSON
 
 if [ ! -e "$TARGET_DIR/CLAUDE.md" ]; then
   echo "Writing starter CLAUDE.md ..."
@@ -182,7 +195,11 @@ echo ""
 echo "Setup complete."
 echo ""
 echo "Files written:"
-echo "  .claude/project.json"
+if [ "$WRITE_PROJECT_JSON" = "1" ]; then
+  echo "  .claude/project.json"
+else
+  echo "  .claude/project.json  (kept existing — not overwritten)"
+fi
 [ -e "$TARGET_DIR/CLAUDE.md" ] && echo "  CLAUDE.md"
 echo "  specs/ build-plans/ decisions/ implementation-notes/  (empty)"
 echo ""

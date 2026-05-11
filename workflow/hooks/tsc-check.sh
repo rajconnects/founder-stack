@@ -20,10 +20,13 @@ esac
 CONFIG="$PROJECT_DIR/.claude/project.json"
 if [ ! -f "$CONFIG" ]; then exit 0; fi
 
-FRONTEND_ROOT=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('stack',{}).get('frontend_root',''))" 2>/dev/null || echo "")
+FRONTEND_ROOT=$(python3 -c "import json; v=json.load(open('$CONFIG')).get('stack',{}).get('frontend_root'); print(v or '')" 2>/dev/null || echo "")
 if [ -z "$FRONTEND_ROOT" ]; then exit 0; fi
 
-FRONTEND_DIR="$PROJECT_DIR/$FRONTEND_ROOT"
+# Normalize the join so "." / "./apps/web" / "apps/web/" all resolve to a
+# canonical absolute path with no "/." or trailing slash. Shell case-globs
+# don't normalize, so a non-canonical FRONTEND_DIR would silently miss matches.
+FRONTEND_DIR=$(python3 -c "import os,sys; print(os.path.normpath(os.path.join(sys.argv[1], sys.argv[2])))" "$PROJECT_DIR" "$FRONTEND_ROOT" 2>/dev/null || echo "$PROJECT_DIR/$FRONTEND_ROOT")
 
 # Only run if the edited file is under the frontend root
 case "$FILE_PATH" in
