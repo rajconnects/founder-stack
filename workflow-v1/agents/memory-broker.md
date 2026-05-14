@@ -1,7 +1,7 @@
 ---
 name: memory-broker
-description: Use PROACTIVELY when the mission procedures (new-mission, tick) need to read or write cross-mission memory. The single seam for memory I/O — every other agent calls this one rather than touching `memory/` directly. Routes to local files by default, or Mem0 over HTTP when `memory.mem0.enabled` is true in project.json.
-tools: Read, Grep, Glob, Write, Edit, Bash, WebFetch
+description: Use PROACTIVELY when the mission procedures (new-mission, tick) need to read or write cross-mission memory. The single seam for memory I/O — every other agent calls this one rather than touching `memory/` directly. Routes to local files by default, or Mem0 over HTTP (via `.claude/scripts/mem0-call.sh`) when `memory.mem0.enabled` is true in project.json.
+tools: Read, Grep, Glob, Write, Edit, Bash
 model: haiku
 ---
 
@@ -43,12 +43,37 @@ PAYLOAD: <JSON object>
 
 ### Mem0 mode (`memory.mem0.enabled: true`)
 
-- Resolve API key: `bash -c 'echo "$<api_key_env>"'`. If empty, return `ERROR: memory.mem0.enabled but $<api_key_env> is unset — falling back to local would silently lose memory. Fix config or unset enabled.` Do not silently fall back.
-- Resolve user id: `bash -c 'echo "$<user_id_env>"'`. If empty, treat as `"default"`.
-- **write**: `POST https://api.mem0.ai/v1/memories/` with `{ user_id, messages: [{ role: "user", content: <serialized payload> }], metadata: { kind, mission_id?, tags? } }`. Use `Authorization: Token <api_key>` header via WebFetch.
-- **read**: `GET https://api.mem0.ai/v1/memories/<id>/` with the same auth header.
-- **search**: `POST https://api.mem0.ai/v1/memories/search/` with `{ user_id, query, limit, filters: { kind } }`.
-- Mirror every Mem0 write to local files as well — Mem0 is augmentation, not replacement. If Mem0 is down, local still works on `/mission-resume`.
+All Mem0 HTTP calls go through `.claude/scripts/mem0-call.sh` — a shell helper that reads `$MEM0_API_KEY` and `$MEM0_USER_ID` from the environment, builds the request, and returns only the response body. **You do not read the API key yourself.** This keeps the secret out of your reasoning context; the response body is the only thing that crosses back into your view.
+
+Preflight (once per dispatch, before any Mem0 call):
+- Resolve user id (non-secret): `bash -c 'echo "${MEM0_USER_ID:-default}"'`. Treat empty as `"default"`. Use this value when constructing payloads below.
+- Check the helper is installed: if `.claude/scripts/mem0-call.sh` does not exist, return `ERROR: memory.mem0.enabled but .claude/scripts/mem0-call.sh missing — re-run scripts/install-v1.sh. Do not silently fall back.`
+- Do **not** attempt to resolve `$MEM0_API_KEY` yourself. If the key is unset, the helper exits 3 with the error; surface that verbatim.
+
+Operations (the helper handles auth + transport; you handle payload assembly):
+
+- **write**:
+  ```bash
+  PAYLOAD='{"user_id": "<USER_ID>", "messages": [{"role": "user", "content": "<serialized payload>"}], "metadata": {"kind": "<KIND>", "mission_id": "<id?>", "tags": [...]}}'
+  .claude/scripts/mem0-call.sh write "$PAYLOAD"
+  ```
+- **read**:
+  ```bash
+  .claude/scripts/mem0-call.sh read <memory-id>
+  ```
+- **search**:
+  ```bash
+  PAYLOAD='{"user_id": "<USER_ID>", "query": "<freeform>", "limit": 3, "filters": {"kind": "<KIND>"}}'
+  .claude/scripts/mem0-call.sh search "$PAYLOAD"
+  ```
+
+The helper exits:
+- `0` — success; response body on stdout
+- `2` — bad usage (your bug; treat as ERROR)
+- `3` — `MEM0_API_KEY` unset (surface verbatim; do not silently fall back)
+- `4` — curl error or HTTP 4xx/5xx (parse the response body if present for the error reason)
+
+Mirror every Mem0 write to local files as well — Mem0 is augmentation, not replacement. If Mem0 is down, local still works on `/mission-resume`.
 
 4. **Return shape (always JSON, always to stdout, always this exact wrapper).**
 

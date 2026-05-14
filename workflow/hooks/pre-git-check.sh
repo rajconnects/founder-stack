@@ -29,9 +29,32 @@ if [ -n "$BACKEND_ROOT" ]; then
     fi
 fi
 
-# --- git commit: lint + format check ---
+# --- git commit: secret scan + lint + format check ---
 if echo "$COMMAND" | grep -qE '^git commit'; then
     echo "[quality-gate] Running pre-commit checks..."
+
+    # Secret scan via gitleaks (optional dependency). If installed, run it
+    # against staged changes and block (exit 2) on findings. If not
+    # installed, print a one-time notice and continue — soft-optional so
+    # users who haven't installed gitleaks aren't surprised by a block.
+    if command -v gitleaks >/dev/null 2>&1; then
+        if ! (cd "$PROJECT_DIR" && gitleaks protect --staged --redact --no-banner 2>&1); then
+            echo "[gitleaks] Staged changes contain potential secrets. Commit blocked."
+            echo "[gitleaks]   Inspect unredacted: cd '$PROJECT_DIR' && gitleaks protect --staged --verbose"
+            echo "[gitleaks]   False positive? Add to .gitleaks.toml allowlist (see gitleaks docs)."
+            exit 2
+        fi
+    else
+        NOTICE_MARKER="$PROJECT_DIR/.claude/.gitleaks-notice-shown"
+        if [ ! -f "$NOTICE_MARKER" ]; then
+            echo "[pre-git-check] gitleaks not installed — secret scanning skipped."
+            echo "  Install: brew install gitleaks   (or apt: gitleaks)"
+            echo "  See:     https://github.com/gitleaks/gitleaks"
+            echo "  (This notice will not repeat — touch \$NOTICE_MARKER if you want to re-show it.)"
+            mkdir -p "$(dirname "$NOTICE_MARKER")" 2>/dev/null
+            : > "$NOTICE_MARKER" 2>/dev/null || true
+        fi
+    fi
 
     if [ -n "$RUFF_CMD" ] && [ -n "$BACKEND_DIR" ]; then
         if ! (cd "$BACKEND_DIR" && "$RUFF_CMD" check . 2>/dev/null); then

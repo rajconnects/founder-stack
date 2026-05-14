@@ -80,6 +80,11 @@ MISSION_ALLOW = [
     # Hooks shell out to one or the other.
     "Bash(timeout *)",
     "Bash(gtimeout *)",
+
+    # Mem0 helper — memory-broker invokes this; the helper keeps the API
+    # key out of agent context. Absolute-path-prefix match.
+    "Bash(*/.claude/scripts/mem0-call.sh *)",
+    "Bash(.claude/scripts/mem0-call.sh *)",
 ]
 
 
