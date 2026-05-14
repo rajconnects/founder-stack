@@ -47,3 +47,4 @@ Major decisions live as traces in `decisions/`. At session start, ask: "Are ther
 - Don't merge to {{primary_branch}} without a handoff doc.
 - Don't silently contradict resolved decision traces.
 - Don't drift scope without explicit approval.
+- **Don't paste API keys, tokens, or DB passwords here.** CLAUDE.md is read by every dispatched agent — including autonomous mission workers and remote MCP-backed servers. Reference secrets by env-var name; keep values in `.env` (gitignored).

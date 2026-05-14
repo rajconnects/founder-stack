@@ -140,6 +140,55 @@ The cron-paced flow (`--pace cron`, see below) starts each tick as a fresh remot
 
 A small audit trail matters. Six weeks from now, when a mission did something unexpected, the `permissions.allow` list is the first thing to read: "did I knowingly grant this surface, or did the orchestrator find a way past?" An explicit list answers that. `["*"]` doesn't.
 
+## Secret hygiene and operational safety
+
+The framework's safety net is built for *code correctness*: worktree isolation, contract approval, schema gate, dispatch caps, PR-not-merge. It is **not** built for secret hygiene. The list below names the leak vectors a non-tech founder is most likely to create and the configuration steps that close them.
+
+### Keep secrets out of files every worker reads
+
+Every dispatched agent receives `CLAUDE.md` and `.claude/project.json` in its context. If you paste an API key, DB password, or token into either, every feature-worker, scrutiny-validator, and `memory-broker` sees it — and `memory-broker` may then mirror it into local memory files or, if Mem0 is enabled, send a summary to `api.mem0.ai`.
+
+Concrete rules:
+
+- **API keys, tokens, DB passwords, signing secrets** → `.env` (gitignored) only. Reference by env-var name in CLAUDE.md if you must (`STRIPE_KEY is in .env, see .env.example for the var name`), never the value.
+- **`.env.example`** — commit only the *names* of variables, never sample values that look real. A 40-character placeholder is enough for someone to grep "looks like an OpenAI key" and false-positive on every dependency scan.
+- **`project.json`** — `supabase_project_ref` is the project ID, not a secret; that's fine. Anon/service keys go in `.env`.
+- **CLAUDE.md "Red lines" section** — the template now flags this explicitly. If you bootstrapped before this rule landed, audit your CLAUDE.md manually.
+
+### Mission handoffs and logs capture worker stdout verbatim
+
+`missions/<id>/handoffs/<feature>.md` and `missions/<id>/log.md` preserve every command the worker ran and its output. If the worker debugged with `env`, `printenv`, `cat .env`, `npm config list` (registry tokens), or `git config --list` (signing keys), those values land on disk in plain text. The mission directory is gitignored, but it persists indefinitely and is read by future missions via `memory-broker`.
+
+Hygiene:
+
+- **Do not paste mission handoff files publicly** — including in support channels, GitHub issues, or screenshots — without scanning for env-shaped strings first.
+- **Periodically clean stale mission dirs**: `rm -rf missions/<old-id>/` once the corresponding PR has merged. The audit trail value tapers fast.
+- **If a worker run touches secret-handling code**, treat the resulting `handoffs/` and `log.md` as secret-grade and shred them after the PR lands.
+
+### Enable GitHub branch protection on `main`
+
+This is outside the framework's control — but it is the **only** mechanical guard against a misbehaving push pattern landing on main. The framework's mission orchestrator pushes only the mission branch and the worker is system-prompted not to push at all, but the `permissions.allow` rule (`Bash(git push *)`) is broader than the procedural intent. Branch protection is your defense-in-depth.
+
+Steps:
+
+1. github.com → your repo → Settings → Branches → Add rule for `main` (or your primary branch).
+2. Require pull request reviews before merging.
+3. Require status checks (your CI) to pass.
+4. Restrict who can push to matching branches (or check "Restrict force pushes").
+
+Without this, `--auto-pr` is still safe (the orchestrator opens a PR, never merges). *With* this, even a misconfigured `permissions.allow` can't land bad code without a human approving the PR.
+
+### Audit every MCP server you enable
+
+Every MCP server expands the worker's reach beyond the framework's static checks. The starter `permissions.allow` permits `mcp__playwright__*` (for `user-flow-tester`); anything else you add (Supabase, Notion, Linear, Gmail) bypasses `/schema-gate` and other framework gates for its own surface.
+
+- **Supabase MCP with destructive scope** — if the worker can call `mcp__claude_ai_Supabase__execute_sql`, it can `DELETE FROM users` regardless of `/schema-gate`. Constrain MCP scopes to read-only when missions don't need writes.
+- **MCP servers with broad tool surfaces** (Gmail send, Slack post) — never wire these into the mission allow-list unless the contract explicitly requires the action.
+
+### Dev servers spawned by `mission_user_test` are your responsibility to stop
+
+v1.0 has no `preview_server_stop_command`. If your `preview_url_command` backgrounds a dev server, you'll accumulate stale servers across runs. See the configuration example below for the recommended pid-file pattern.
+
 ## Trying it out
 
 Throwaway-repo verification path:
@@ -205,14 +254,28 @@ Two minimal configurations:
 ```
 
 ```jsonc
-// Have the mission start its own dev server (simple background-and-wait pattern)
+// Have the mission start its own dev server. Writes a pid file so you can
+// kill the server cleanly between runs — see cleanup snippet below.
 "mission_user_test": {
   "mcp": "playwright",
-  "preview_url_command": "cd $CLAUDE_PROJECT_DIR/missions/$MISSION_ID/worktree && nohup npm run dev > /tmp/dev-$MISSION_ID.log 2>&1 & sleep 8 && echo http://localhost:5173"
+  "preview_url_command": "cd $CLAUDE_PROJECT_DIR/missions/$MISSION_ID/worktree && nohup npm run dev > /tmp/dev-$MISSION_ID.log 2>&1 & echo $! > /tmp/dev-$MISSION_ID.pid && sleep 8 && echo http://localhost:5173"
 }
 ```
 
-v1.0 does **not** auto-stop dev servers the command starts — you're responsible for cleanup. A `preview_server_stop_command` is on the roadmap if this becomes painful.
+v1.0 does **not** auto-stop dev servers the command starts — you're responsible for cleanup. After a mission finishes (or aborts), kill the dev server:
+
+```bash
+# Single mission
+[ -f /tmp/dev-<mission-id>.pid ] && kill "$(cat /tmp/dev-<mission-id>.pid)" && rm /tmp/dev-<mission-id>.pid
+
+# All accumulated dev servers
+for pid_file in /tmp/dev-*.pid; do
+  [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2>/dev/null
+  rm -f "$pid_file"
+done
+```
+
+A `preview_server_stop_command` is on the roadmap so the orchestrator handles this itself.
 
 When `preview_url_command` is null, the orchestrator writes `verdicts.<fid>.user_test = "skipped"` and proceeds straight from scrutiny to handoff. This is the right setting for backend-only features or when you want a faster verification loop before wiring browser tests in.
 
@@ -223,6 +286,8 @@ When `preview_url_command` is null, the orchestrator writes `verdicts.<fid>.user
 `/mission "<goal>" --auto-pr` makes the orchestrator push the mission branch and `gh pr create` at completion (with an assembled body including PASS checkmarks and a `Closes <issue-url>` line if you also started from an issue). Set `github.auto_pr_on_completion: true` in `project.json` to make this the default.
 
 Combined: `/mission --from-issue https://github.com/<org>/<repo>/issues/42 --auto-pr` is a fully autonomous issue→PR run. The orchestrator never merges — that's always human.
+
+**Strongly recommended before relying on `--auto-pr`:** enable branch protection on your primary branch (require PR review, require status checks). The orchestrator opens a PR but never merges; branch protection is the mechanical guarantee that this stays true if the permission allow-list drifts. See "Secret hygiene and operational safety" above.
 
 Requires `gh` CLI installed and authenticated.
 
