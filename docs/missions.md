@@ -106,6 +106,40 @@ Mem0 (semantic recall) is opt-in for v1.0 — set `memory.mem0.enabled: true` an
 
 Then merge `.claude/project.example.v1.json` keys into your existing `.claude/project.json` (optional — defaults are baked into the agents).
 
+## Running missions hands-free
+
+Mission mode's "kick off after dinner, review at breakfast" promise is about **decision autonomy** — the orchestrator never asks you whether to retry a worker, advance to scrutiny, or accept a verdict. **Claude Code's permission system is orthogonal.** Every `Bash`, `Edit`, `Write`, `Task` dispatch, and MCP call still passes through the harness's permission gate. Without a baseline allow-list, an overnight mission stalls behind permission prompts and you wake up to a session frozen on turn three.
+
+### What `install-v1.sh` now wires for you
+
+The v1 installer adds a conservative starter `permissions.allow` to your project's `.claude/settings.json`:
+
+- `Task` — for the orchestrator's sub-agent dispatches.
+- `Bash(npm test*)`, `Bash(npm run *)`, `Bash(npx *)`, `Bash(pnpm *)`, `Bash(yarn *)` — JS/TS tool surface.
+- `Bash(pytest*)`, `Bash(ruff *)`, `Bash(python3 *)` — Python tool surface.
+- `Bash(git status*)`, `git diff*`, `git log*`, `git add *`, `git commit *`, `git push *`, `git branch*`, `git checkout*`, `git worktree *`, `git rev-parse*` — version control. Push patterns affect only the mission branch (workers stay inside `missions/<id>/worktree/`); `main` is never touched by the orchestrator.
+- `Bash(gh pr create*)`, `gh pr view*`, `gh issue view*` — for `--from-issue` / `--auto-pr`.
+- `mcp__playwright__*` — for `user-flow-tester`.
+- `Bash(timeout *)`, `Bash(gtimeout *)` — both shell-out forms used by hooks.
+
+The wiring is idempotent and additive. Any allow entries you already had are preserved; re-running `install-v1.sh` (or `scripts/wire-mission-permissions.py` directly) deduplicates by exact-string match.
+
+Review the merged list in `.claude/settings.json` after install and tighten or extend it for your stack — particularly if you have unusual deploy commands, custom CLI tools, or MCP servers the worker will hit.
+
+### If you need broader autonomy than the allow-list provides
+
+Two harness-level escape hatches, in increasing order of "trust the contract":
+
+1. **`claude --permission-mode acceptEdits`** — Claude Code auto-accepts file edits and standard tools but still confirms novel Bash patterns. Reasonable middle ground when you're refining your allow-list across a few runs.
+
+2. **`claude --dangerously-skip-permissions`** — auto-allow everything. Only safe inside the mission's git worktree at `missions/<id>/worktree/` (which the framework already isolates filesystem changes to), and only when you trust the contract scope. This is the literal "walk away" setting.
+
+The cron-paced flow (`--pace cron`, see below) starts each tick as a fresh remote session, which respects the project's `.claude/settings.json` exactly the same way — the wired allow-list applies. Use `--dangerously-skip-permissions` there only via the harness flag, never bake it into a routine.
+
+### Why the allow-list is not just `["*"]`
+
+A small audit trail matters. Six weeks from now, when a mission did something unexpected, the `permissions.allow` list is the first thing to read: "did I knowingly grant this surface, or did the orchestrator find a way past?" An explicit list answers that. `["*"]` doesn't.
+
 ## Trying it out
 
 Throwaway-repo verification path:

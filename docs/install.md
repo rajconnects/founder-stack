@@ -167,8 +167,9 @@ After v0.1 is installed, v1 ships as an additive layer — no v0.1 files are tou
 - Templates under `.claude/templates/v1/`: `state.schema.json`, `mission-contract.template.md`, `mission-handoff.template.md`
 - `Engineering-Playbook-v1-deltas.md` and `project.example.v1.json`
 - `.gitignore` entries (idempotent) for `missions/`, `memory/`, and `.claude/settings.local.json` — keeps mission metadata out of PRs the worker opens from the mission branch
+- A starter `permissions.allow` block in `.claude/settings.json` covering the tool surface a mission worker hits (Task dispatch, npm/pnpm/yarn, pytest/ruff, git, gh, Playwright MCP, timeout). Without this, an overnight mission stalls behind Claude Code permission prompts. Idempotent and additive — your existing allow entries are preserved. See [`missions.md`](missions.md) "Running missions hands-free" for the full list and how to tighten or extend it.
 
-**What does NOT change:** existing v0.1 commands, agents, hooks, or settings. Users who never type `/mission` see no behavioral difference.
+**What does NOT change:** existing v0.1 commands, agents, hooks, or your prior `permissions.allow`/`deny` entries. Users who never type `/mission` see no behavioral difference beyond the additive allow-list (which doesn't affect v0.1 commands either).
 
 **Optional config.** Merge keys from `.claude/project.example.v1.json` into your existing `.claude/project.json` to customize mission caps, model seats, or memory backend. Every v1 key has a documented default — you can skip this step entirely.
 

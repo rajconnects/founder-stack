@@ -101,6 +101,22 @@ link_file "$FRAMEWORK_DIR/workflow-v1/project.example.v1.json" \
 # Hooks: v1 introduces no new hooks in MVP. v1.1 may add mission-heartbeat.sh.
 # Hook wiring stays exactly as v0.1's install.sh left it.
 
+# Mission mode autonomy is about *decisions* (orchestrator never asks you to
+# approve a worker retry); Claude Code's permission gate is orthogonal and
+# fires on every tool call by default. Without a baseline allow-list, an
+# overnight mission stalls behind prompts. Wire a conservative starter set —
+# idempotent, additive, preserves any user-defined entries.
+echo ""
+echo "Wiring mission permissions into .claude/settings.json ..."
+SETTINGS="$TARGET_DIR/.claude/settings.json"
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$FRAMEWORK_DIR/scripts/wire-mission-permissions.py" "$SETTINGS" || true
+else
+  echo "  warning: python3 not found — skipped permissions wiring."
+  echo "  Install python3 and re-run scripts/wire-mission-permissions.py"
+  echo "  before relying on overnight missions."
+fi
+
 # Per-mission worktrees + memory directories pollute git status if not ignored.
 # When the worker opens a PR from missions/<id>/worktree, the mission's own
 # state.json / log.md / handoffs would otherwise get included in the PR diff.
@@ -130,6 +146,9 @@ echo "Next steps:"
 echo "  1. Merge keys from .claude/project.example.v1.json into your"
 echo "     existing .claude/project.json. All v1 keys are optional —"
 echo "     orchestrator falls back to defaults if absent."
-echo "  2. Open Claude Code in this directory and try:"
+echo "  2. Review .claude/settings.json 'permissions.allow' — a mission"
+echo "     starter set was just wired. Tighten or extend for your stack."
+echo "     See docs/missions.md 'Running missions hands-free' for context."
+echo "  3. Open Claude Code in this directory and try:"
 echo "       /mission \"build a simple counter component\""
-echo "  3. Reference: .claude/Engineering-Playbook-v1-deltas.md"
+echo "  4. Reference: .claude/Engineering-Playbook-v1-deltas.md"
