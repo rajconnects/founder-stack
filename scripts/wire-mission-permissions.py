@@ -83,6 +83,49 @@ MISSION_ALLOW = [
 ]
 
 
+# Deny list — patterns that override the allow list. Claude Code evaluates
+# rules in order: deny → ask → allow, so a matching deny always wins.
+#
+# Why this exists alongside MISSION_ALLOW: the allow entry "Bash(git push *)"
+# is broader than the procedural intent. Claude Code's `*` matches the rest
+# of the command line (not "next single argument"), so without an explicit
+# deny, "git push origin main" or "git push --force origin main" would be
+# allowed. The orchestrator's tick procedure only ever pushes the mission
+# branch via `git push -u origin <state.worktree.branch>`, and the worker
+# is system-prompted not to push at all. This deny block enforces the
+# procedural rule at the gate.
+#
+# Override path: if you genuinely need a force-push or a direct push to
+# main during recovery, temporarily remove the matching entry from
+# permissions.deny. Don't add a competing allow rule — deny always wins.
+MISSION_DENY = [
+    # Block pushes that target main/master, in any of the forms a worker
+    # or procedure might accidentally produce.
+    "Bash(git push * main)",
+    "Bash(git push * main:*)",
+    "Bash(git push *:main)",
+    "Bash(git push *:main *)",
+    "Bash(git push * master)",
+    "Bash(git push * master:*)",
+    "Bash(git push *:master)",
+    "Bash(git push *:master *)",
+
+    # Block any form of force-push regardless of branch.
+    "Bash(git push --force*)",
+    "Bash(git push -f *)",
+    "Bash(git push --force-with-lease*)",
+
+    # Block remote branch deletion via push.
+    "Bash(git push --delete*)",
+    "Bash(git push -d *)",
+
+    # Block destructive local-state resets that throw away uncommitted work.
+    "Bash(git reset --hard*)",
+    "Bash(git clean -fd*)",
+    "Bash(git clean -fdx*)",
+]
+
+
 def main(settings_path: Path) -> int:
     if settings_path.exists():
         try:
@@ -107,34 +150,48 @@ def main(settings_path: Path) -> int:
         )
         return 1
 
-    allow = permissions.get("allow")
-    if allow is None:
-        permissions["allow"] = []
-        allow = permissions["allow"]
-    elif not isinstance(allow, list):
-        kind = type(allow).__name__
-        print(
-            f"error: {settings_path} 'permissions.allow' is {kind}, expected list. "
-            "Edit manually and re-run.",
-            file=sys.stderr,
-        )
-        return 1
+    def merge_list(key: str, patterns: list[str]) -> tuple[int, int] | None:
+        """Idempotently merge `patterns` into permissions[key]. Returns
+        (added, kept) on success or None on a fatal typing error (already
+        reported to stderr)."""
+        current = permissions.get(key)
+        if current is None:
+            permissions[key] = []
+            current = permissions[key]
+        elif not isinstance(current, list):
+            kind = type(current).__name__
+            print(
+                f"error: {settings_path} 'permissions.{key}' is {kind}, expected list. "
+                "Edit manually and re-run.",
+                file=sys.stderr,
+            )
+            return None
 
-    existing = {entry for entry in allow if isinstance(entry, str)}
-    added = 0
-    for pattern in MISSION_ALLOW:
-        if pattern in existing:
-            continue
-        allow.append(pattern)
-        existing.add(pattern)
-        added += 1
+        existing = {entry for entry in current if isinstance(entry, str)}
+        added = 0
+        for pattern in patterns:
+            if pattern in existing:
+                continue
+            current.append(pattern)
+            existing.add(pattern)
+            added += 1
+        return added, len(patterns) - added
+
+    allow_result = merge_list("allow", MISSION_ALLOW)
+    if allow_result is None:
+        return 1
+    deny_result = merge_list("deny", MISSION_DENY)
+    if deny_result is None:
+        return 1
 
     tmp = settings_path.with_suffix(settings_path.suffix + ".tmp")
     tmp.write_text(json.dumps(settings, indent=2) + "\n")
     tmp.replace(settings_path)
 
-    kept = len(MISSION_ALLOW) - added
-    print(f"  mission permissions: {added} added, {kept} already present")
+    a_added, a_kept = allow_result
+    d_added, d_kept = deny_result
+    print(f"  mission permissions: allow {a_added} added, {a_kept} already present; "
+          f"deny {d_added} added, {d_kept} already present")
     return 0
 
 

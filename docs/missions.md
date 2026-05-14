@@ -117,14 +117,27 @@ The v1 installer adds a conservative starter `permissions.allow` to your project
 - `Task` — for the orchestrator's sub-agent dispatches.
 - `Bash(npm test*)`, `Bash(npm run *)`, `Bash(npx *)`, `Bash(pnpm *)`, `Bash(yarn *)` — JS/TS tool surface.
 - `Bash(pytest*)`, `Bash(ruff *)`, `Bash(python3 *)` — Python tool surface.
-- `Bash(git status*)`, `git diff*`, `git log*`, `git add *`, `git commit *`, `git push *`, `git branch*`, `git checkout*`, `git worktree *`, `git rev-parse*` — version control. Push patterns affect only the mission branch (workers stay inside `missions/<id>/worktree/`); `main` is never touched by the orchestrator.
+- `Bash(git status*)`, `git diff*`, `git log*`, `git add *`, `git commit *`, `git push *`, `git branch*`, `git checkout*`, `git worktree *`, `git rev-parse*` — version control. The broad `git push *` allow is necessary because the orchestrator pushes the mission branch on completion; **the deny block below stops it from being used to push main or to force-push.**
 - `Bash(gh pr create*)`, `gh pr view*`, `gh issue view*` — for `--from-issue` / `--auto-pr`.
 - `mcp__playwright__*` — for `user-flow-tester`.
 - `Bash(timeout *)`, `Bash(gtimeout *)` — both shell-out forms used by hooks.
 
-The wiring is idempotent and additive. Any allow entries you already had are preserved; re-running `install-v1.sh` (or `scripts/wire-mission-permissions.py` directly) deduplicates by exact-string match.
+### The paired deny block (gate-enforced)
 
-Review the merged list in `.claude/settings.json` after install and tighten or extend it for your stack — particularly if you have unusual deploy commands, custom CLI tools, or MCP servers the worker will hit.
+Claude Code evaluates permission rules in order **deny → ask → allow**. A matching deny always wins, so the installer also wires a `permissions.deny` block that narrows the allow-list above:
+
+- `Bash(git push * main)`, `Bash(git push * main:*)`, `Bash(git push *:main)`, `Bash(git push *:main *)` — and the same four shapes for `master`. Blocks any push that targets the primary branch, in any of the refspec forms a worker or procedure might accidentally produce.
+- `Bash(git push --force*)`, `Bash(git push -f *)`, `Bash(git push --force-with-lease*)` — blocks force-push regardless of target branch.
+- `Bash(git push --delete*)`, `Bash(git push -d *)` — blocks remote branch deletion via push.
+- `Bash(git reset --hard*)`, `Bash(git clean -fd*)`, `Bash(git clean -fdx*)` — blocks destructive local-state resets that throw away uncommitted work.
+
+The orchestrator's procedural rule (push only the mission branch, see `mission-tick.md:206`) is now enforced at the gate, not just by prompt. A worker drift or a future procedural bug can't accidentally land on main — the deny rule fires first.
+
+**Override path:** if you legitimately need a force-push or a direct main push during recovery, temporarily remove the matching entry from `permissions.deny` and run the command manually. Don't add a competing allow rule — deny always wins, and it's a confusing failure mode to debug. Restore the entry when done.
+
+The wiring (both allow and deny) is idempotent and additive. Any entries you already had are preserved; re-running `install-v1.sh` (or `scripts/wire-mission-permissions.py` directly) deduplicates by exact-string match.
+
+Review the merged lists in `.claude/settings.json` after install and tighten or extend for your stack — particularly if you have unusual deploy commands, custom CLI tools, or MCP servers the worker will hit.
 
 ### If you need broader autonomy than the allow-list provides
 
