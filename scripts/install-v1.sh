@@ -98,6 +98,14 @@ link_file "$FRAMEWORK_DIR/workflow-v1/Engineering-Playbook-v1-deltas.md" \
 link_file "$FRAMEWORK_DIR/workflow-v1/project.example.v1.json" \
           "$TARGET_DIR/.claude/project.example.v1.json"
 
+# Helper scripts go under .claude/scripts/. mem0-call.sh keeps $MEM0_API_KEY
+# out of the memory-broker agent's reasoning context (G3 in the safety
+# advisory). The agent invokes the helper for write/read/search; the key is
+# read by the helper's shell process and never returned to the model.
+mkdir -p "$TARGET_DIR/.claude/scripts"
+link_file "$FRAMEWORK_DIR/scripts/mem0-call.sh" \
+          "$TARGET_DIR/.claude/scripts/mem0-call.sh"
+
 # Hooks: v1 introduces no new hooks in MVP. v1.1 may add mission-heartbeat.sh.
 # Hook wiring stays exactly as v0.1's install.sh left it.
 
@@ -126,7 +134,7 @@ echo "Wiring .gitignore (idempotent) ..."
 GITIGNORE="$TARGET_DIR/.gitignore"
 touch "$GITIGNORE"
 gi_added=0
-for line in "missions/" "memory/" ".claude/settings.local.json"; do
+for line in "missions/" "memory/" ".claude/settings.local.json" ".claude/.mission-tick-active-*" ".claude/.gitleaks-notice-shown"; do
   if ! grep -qxF "$line" "$GITIGNORE"; then
     printf '%s\n' "$line" >> "$GITIGNORE"
     echo "  added:     $line"

@@ -153,6 +153,16 @@ The cron-paced flow (`--pace cron`, see below) starts each tick as a fresh remot
 
 A small audit trail matters. Six weeks from now, when a mission did something unexpected, the `permissions.allow` list is the first thing to read: "did I knowingly grant this surface, or did the orchestrator find a way past?" An explicit list answers that. `["*"]` doesn't.
 
+### Hardening warn-only hooks during a mission tick
+
+`main-push-guard.sh` is warn-only by default — it prints a message and exits 0 if you try to push to main/master without a `/deploy-gate` marker. The intent is to nudge an interactive user, not to block their muscle memory. In autonomous mission mode that's backwards: the orchestrator never "sees" a warning, it just keeps going.
+
+The orchestrator's `mission-tick` procedure writes `.claude/.mission-tick-active-<MISSION_ID>` at the start of each tick and removes it at the end. When the marker is present and a push-to-main-without-deploy-gate triggers `main-push-guard.sh`, the hook exits 2 (blocking) instead of 0 (warning). Outside mission ticks (interactive sessions, gaps between ticks), the original warn behavior is unchanged.
+
+Stale-marker recovery: if a tick crashes before cleanup, the marker persists until the next tick rewrites it OR until you `rm -f .claude/.mission-tick-active-*`. `/mission-abort` also removes the marker for the aborted mission.
+
+Why `migration-guard.sh` did not get the same hardening: workers legitimately write migration files as part of normal flow, with `/schema-gate` (and the deterministic `schema-static-scan.sh`) running later in the tick. Blocking the file edit would kill the worker before scrutiny could fire. The schema-gate marker remains the harder block for that path.
+
 ## Secret hygiene and operational safety
 
 The framework's safety net is built for *code correctness*: worktree isolation, contract approval, schema gate, dispatch caps, PR-not-merge. It is **not** built for secret hygiene. The list below names the leak vectors a non-tech founder is most likely to create and the configuration steps that close them.
@@ -167,6 +177,7 @@ Concrete rules:
 - **`.env.example`** — commit only the *names* of variables, never sample values that look real. A 40-character placeholder is enough for someone to grep "looks like an OpenAI key" and false-positive on every dependency scan.
 - **`project.json`** — `supabase_project_ref` is the project ID, not a secret; that's fine. Anon/service keys go in `.env`.
 - **CLAUDE.md "Red lines" section** — the template now flags this explicitly. If you bootstrapped before this rule landed, audit your CLAUDE.md manually.
+- **gitleaks pre-commit hook** — `pre-git-check.sh` now scans staged changes via gitleaks (when installed) and blocks the commit on findings. This is your enforced backstop: if a worker accidentally hardcodes a key into source, the commit fails. Install with `brew install gitleaks` (or apt-equivalent). Without it, the hook prints a one-time notice and skips scanning — strongly recommended once you have real credentials anywhere in the project.
 
 ### Mission handoffs and logs capture worker stdout verbatim
 

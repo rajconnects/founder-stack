@@ -10,6 +10,7 @@ The framework lives in one location on your machine and gets symlinked into each
 - **python3** — required for hooks to work and for the install's hook-wiring step.
 - **Claude Code** — the workflow's commands, agents, and hooks are Claude Code-native.
 - **bash** — macOS/Linux ship with this. On Windows, use WSL.
+- **gitleaks** *(recommended)* — `brew install gitleaks` or apt-equivalent. When present, `pre-git-check.sh` scans staged changes for secrets and blocks commits on findings. Without it, secret scanning is skipped silently (with a one-time notice). Not required, but highly recommended once you have any real API keys or tokens in the project.
 
 ## One-time framework clone
 

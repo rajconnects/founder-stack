@@ -10,6 +10,8 @@ This is the autonomous body. It runs one dispatch step per invocation, then eith
 
 1. **Resolve config and state.** Read `.claude/project.json` and `<mission_root>/<MISSION_ID>/state.json`. If state.json is missing or invalid: write a one-line error to `log.md`, set status to `blocked`, return.
 
+1a. **Write the mission-mode marker.** Touch `$CLAUDE_PROJECT_DIR/.claude/.mission-tick-active-<MISSION_ID>`. This signals to `main-push-guard.sh` (and future warn-only hooks) that the strict path applies — blocking instead of warning on a push to main/master. The marker is removed at the end of this tick (step "Wrap up the tick") or via the cleanup step in any terminal-status branch below. If a tick crashes before cleanup, the marker is stale; the next tick rewrites it, and `/mission-abort` cleans up all matching markers.
+
 2. **Reset resume flag.** If `resume_requested: true`, set it to `false` (we're resuming now).
 
 3. **Check caps before dispatching anything.**
@@ -150,6 +152,7 @@ Otherwise:
 7. **Save state, log, schedule next tick.** After every dispatch, before returning:
    - Save `state.json` (atomic write — use `Write` to a `.tmp` then `Bash mv`).
    - Append to `log.md` (one line per dispatch).
+   - **Remove the mission-mode marker:** `rm -f "$CLAUDE_PROJECT_DIR/.claude/.mission-tick-active-<MISSION_ID>"`. This MUST happen before the return — otherwise interactive sessions in the gap between ticks would falsely trip the marker-based hardening in `main-push-guard.sh`.
    - **Local pace only:** call `ScheduleWakeup` with `delaySeconds: <mission_caps.default_wake_active_secs or 270>`, `prompt: "/mission-tick <id>"`, reason `"mission <id> next dispatch: <step>"`. In **cron pace**, do NOT call `ScheduleWakeup` — the next tick is cron-driven, not session-driven.
    - Return briefly to the dispatching slash command with: `<id> | step <step> | <verdict-summary> | pace <pace> | status <status>`. The slash command (`/mission-tick`) uses `status` to decide whether to delete the cron routine when terminal.
    - **Skip the `ScheduleWakeup` call** if `status` transitioned to `completed`, `aborted`, or `blocked` this tick — the loop should not re-fire on terminal states.
@@ -194,6 +197,8 @@ Reached only when the last feature's `current_step: handoff` runs.
 
 5. Append final `log.md` entry.
 
+5a. **Remove the mission-mode marker** for this mission: `rm -f "$CLAUDE_PROJECT_DIR/.claude/.mission-tick-active-<MISSION_ID>"`. Same reasoning as step 7 above — must happen before this procedure returns so post-mission interactive sessions aren't unexpectedly under the hardened-hook regime.
+
 6. **Close the coordination.json row** for this mission: set `status: completed`, `completed: <iso>`.
 
 7. Print to the user: `Mission <id> complete. <feature_count> features. <retry_counts summary>. Summary in <mission_root>/<id>/log.md.`
@@ -231,5 +236,6 @@ Reached only when the last feature's `current_step: handoff` runs.
 - **Never silently fall back to local memory if Mem0 errors.** The broker errors out; you propagate the error to `log.md` and either retry or transition to `blocked`.
 - **`state.json` writes must be atomic.** Write to `state.json.tmp`, then `Bash mv state.json.tmp state.json`.
 - **Trip `resume_requested` early.** The cost of a resume is small; the cost of a context overflow mid-dispatch is a corrupted state file.
-- **Do not write or edit any file outside `<mission_root>/<MISSION_ID>/`** except: (a) memory-broker writes under `<memory.local_root>/`, (b) appending to `log.md`. This procedure never edits source code.
+- **Do not write or edit any file outside `<mission_root>/<MISSION_ID>/`** except: (a) memory-broker writes under `<memory.local_root>/`, (b) appending to `log.md`, (c) writing/removing `.claude/.mission-tick-active-<MISSION_ID>` (the mission-mode marker — see step 1a). This procedure never edits source code.
+- **Always remove the mission-mode marker before this procedure returns** — at the end of step 7 (next-tick path), at step 5a of Completion, and at every early-return point in step 3 (caps hit) / step 4 (context budget) / any `status: blocked` transition. Leaving a stale marker means the next interactive session is unexpectedly under the hardened-hook regime. If you discover stale markers from prior crashes, `rm -f .claude/.mission-tick-active-*` is safe.
 - **Single-Bash-call atomic ops.** Use `Bash` for `openssl rand`, `date -u +%Y-%m-%dT%H:%M:%SZ`, `mv` — don't chain multiple Bash calls when one will do.
